@@ -173,7 +173,8 @@ def migrate_workload(config):
                         logger.debug(
                             "Candidate has either node affinity or vm affinity rule, skipping"
                         )
-                        continue
+                        target_nodes = []
+
 
         if not target_nodes:
             logger.debug("No nodes fit selection criteria")

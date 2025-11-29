@@ -1,0 +1,13 @@
+proxmox_api:
+  host: "proxmox.example.com"
+  port: 443
+  user: user@pam
+  token_id: token_name
+  token_secret: 12345678-abcd-1234-efgh-123456abcdef
+
+balancer:
+  memory_max: 0.8
+  cpu_max: 0.8
+
+logging:
+  level: INFO

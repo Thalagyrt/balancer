@@ -1,0 +1,4 @@
+requests
+proxmoxer
+PyYAML
+pandas

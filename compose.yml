@@ -1,0 +1,6 @@
+services:
+  balancer:
+    image: ghcr.io/thalagyrt/balancer:latest
+    restart: unless-stopped
+    volumes:
+     - ./balancer.yaml:/usr/src/app/balancer.yaml

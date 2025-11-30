@@ -94,7 +94,8 @@ def migrate_workload(config):
     resources = api.cluster.resources.get(type="vm")
 
     for resource in resources:
-        resource["cpu"] = cpu_ema(f'vm_{resource["vmid"]}', resource["cpu"])
+        if resource["status"] == "running":
+            resource["cpu"] = cpu_ema(f'vm_{resource["vmid"]}', resource["cpu"])
 
     for resource in resources:
         if resource.get("lock", None) == "migrate":

@@ -58,8 +58,8 @@ def migrate_workload(config):
     memory_max = clamp(config.get("balancer").get("memory_max", 0.8), 0.5, 0.9)
 
     # Set the dynamic memory threshold
-    used_memory = list(map(lambda x: x["mem"], nodes))
-    memory_threshold = int(statistics.mean(used_memory) * 1.2)
+    used_memory = list(map(lambda x: x["mem"] / x["maxmem"], nodes))
+    memory_threshold = statistics.mean(used_memory) * 1.2
 
     logger.debug(f"Setting memory thresehold to {memory_threshold}")
 
@@ -74,7 +74,7 @@ def migrate_workload(config):
         logger.debug(f"A node is over the memory maximum of {memory_max}%")
         mode = "mem"
         reason = "Memory maximum exceeded"
-    elif any(node["mem"] > memory_threshold for node in nodes):
+    elif any(node["mem"] / node["maxmem"] > memory_threshold for node in nodes):
         logger.debug(f"A node is over the memory threshold of {memory_threshold}")
         mode = "mem"
         reason = "Proactive balancing"
@@ -138,18 +138,47 @@ def migrate_workload(config):
         # Filter out nodes that this guest would throw over the cpu_max limit
         target_nodes = list(
             filter(
-                lambda x: x["cpu"] + candidate["cpu"] < (cpu_max * 0.9), target_nodes
+                lambda x: x["cpu"]
+                + (
+                    # Scale the guest's CPU usage to host usage
+                    (candidate["cpu"] * candidate["maxcpu"] / source_node["maxcpu"])
+                    # Scale the resultant host usage to the target node's core count
+                    * (source_node["maxcpu"] / x["maxcpu"])
+                )
+                < (cpu_max * 0.9),
+                target_nodes,
             )
         )
 
         # Filter out nodes that would not be a meet-in-the-middle
-        target_nodes = list(
-            filter(
-                lambda x: x[mode] + candidate[mode]
-                < ((source_node[mode] + x[mode]) / 2),
-                target_nodes,
+        if mode == "mem":
+            target_nodes = list(
+                filter(
+                    lambda x: ((x["mem"] + candidate["mem"]) / x["maxmem"])
+                    < (
+                        (
+                            (source_node["mem"] / source_node["maxmem"])
+                            + (x["mem"] / x["maxmem"])
+                        )
+                        / 2
+                    ),
+                    target_nodes,
+                )
             )
-        )
+        elif mode == "cpu":
+            target_nodes = list(
+                filter(
+                    lambda x: x["cpu"]
+                    + (
+                        # Scale the guest's CPU usage to host usage
+                        (candidate["cpu"] * candidate["maxcpu"] / source_node["maxcpu"])
+                        # Scale the resultant host usage to the target node's core count
+                        * (source_node["maxcpu"] / x["maxcpu"])
+                    )
+                    < ((source_node["cpu"] + x["cpu"]) / 2),
+                    target_nodes,
+                )
+            )
 
         # Filter out nodes that would violate an anti-affinity rule, as well as candidates that
         for ha_rule in ha_rules:

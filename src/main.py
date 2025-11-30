@@ -113,17 +113,14 @@ def migrate_workload(config):
         if resource["status"] == "running":
             resource["cpu"] = cpu_ema(f'vm_{resource["vmid"]}', resource["cpu"])
 
-    for resource in resources:
-        if resource.get("lock", None) == "migrate":
-            logger.debug(
-                f"{resource['name']} is currently migrating, waiting for completion"
-            )
-            return False
+    if any(c for c in resources if c.get("lock") == "migrate"):
+        logger.debug(f"A resource currently has an active migrationlock, taking no action")
+        return False
 
-    # Quickly pare the list down to VMs not in a backup state, and that are currently running on the source node.
-    candidates = [c for c in resources if not "lock" in c]
+    # Quickly pare the list down to workloads that can be migrated from this node.
+    candidates = [c for c in resources if c["node"] == source_node["node"]]
     candidates = [c for c in candidates if c["status"] == "running"]
-    candidates = [c for c in candidates if c["node"] == source_node["node"]]
+    candidates = [c for c in candidates if not "lock" in c]
 
     # If CPU, we specifically want to exclude the candidate with the highest utilization
     if mode == "cpu":

@@ -69,12 +69,15 @@ def migrate_workload(config):
     if any(node["cpu"] > cpu_max for node in nodes):
         logger.debug(f"A node is over the CPU maximum of {cpu_max}%")
         mode = "cpu"
+        reason = "CPU maximum exceeded"
     elif any(node["mem"] / node["maxmem"] > memory_max for node in nodes):
         logger.debug(f"A node is over the memory maximum of {memory_max}%")
         mode = "mem"
+        reason = "Memory maximum exceeded"
     elif any(node["mem"] > memory_threshold for node in nodes):
         logger.debug(f"A node is over the memory threshold of {memory_threshold}")
         mode = "mem"
+        reason = "Proactive balancing"
     else:
         logger.debug(f"No balancing is necessary")
         return False
@@ -182,7 +185,7 @@ def migrate_workload(config):
 
         # Off we go!
         logger.info(
-            f"Migrating {candidate['name']} from {source_node['node']} to {target_node['node']}"
+            f"{reason}: Migrating {candidate['name']} from {source_node['node']} to {target_node['node']}"
         )
         opts = {"target": target_node["node"], "online": 1, "with-conntrack-state": 1}
         api.nodes(source_node["node"]).qemu(candidate["vmid"]).migrate().post(**opts)

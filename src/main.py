@@ -139,16 +139,14 @@ def migrate_workload(config):
             )
         )
 
-        # Filter out nodes that would not be a meet-in-the-middle on memory usage, but only if we're balancing by memory.
-        # If we're balancing by CPU to avoid starvation, we no longer care about this specific condition.
-        if mode == "mem":
-            target_nodes = list(
-                filter(
-                    lambda x: x["mem"] + candidate["mem"]
-                    < ((source_node["mem"] + x["mem"]) / 2),
-                    target_nodes,
-                )
+        # Filter out nodes that would not be a meet-in-the-middle
+        target_nodes = list(
+            filter(
+                lambda x: x[mode] + candidate[mode]
+                < ((source_node[mode] + x[mode]) / 2),
+                target_nodes,
             )
+        )
 
         # Filter out nodes that would violate an anti-affinity rule, as well as candidates that
         for ha_rule in ha_rules:

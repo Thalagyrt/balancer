@@ -175,17 +175,17 @@ def migrate_workload(config):
                         )
                         target_nodes = []
 
-
         if not target_nodes:
             logger.debug("No nodes fit selection criteria")
             continue
 
         # Pick the least utilized node by the current execution mode
-        target_nodes = sorted(target_nodes, key=lambda node: node[mode], reverse=True)
-        target_node = target_nodes[-1]
+        target_node = sorted(target_nodes, key=lambda node: node[mode])[0]
 
         # Off we go!
-        logger.info(f"Migrating {candidate['name']} to {target_node['node']}")
+        logger.info(
+            f"Migrating {candidate['name']} from {source_node['node']} to {target_node['node']}"
+        )
         opts = {"target": target_node["node"], "online": 1, "with-conntrack-state": 1}
         api.nodes(source_node["node"]).qemu(candidate["vmid"]).migrate().post(**opts)
 
@@ -200,10 +200,11 @@ def main():
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(message)s", level=log_level
     )
+    logger.info("Starting up.")
     while True:
         if migrate_workload(config):
-            # Ensure that we have enough time for a migration to register so we don't kick off another right away
-            time.sleep(25) 
+            # Ensure that we have enough time for a migration to begin so we don't kick off another right away
+            time.sleep(25)
         time.sleep(5)
 
 

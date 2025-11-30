@@ -28,7 +28,7 @@ The following parameters are used to define the boundaries for when balancing ac
 
 | Parameter | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `cpu_max` | Float (0.5-0.9) | 0.8 (80%) | The sustained EMA CPU utilization threshold that triggers resource depletion mode on a node. |
+| `cpu_max` | Float (0.5-0.9) | 0.8 (80%) | The sustained CPU utilization threshold that a migration cannot exceed on the target node. |
 | `memory_max` | Float (0.5-0.9) | 0.8 (80%) | The absolute memory utilization threshold that a migration cannot exceed on the target node. |
 
 For high availability (HA) and reliability, it is suggested to run this script through a reverse proxy configured to communicate with all cluster nodes in a failover or round-robin manner. This ensures continuous operation even if one node is temporarily offline.

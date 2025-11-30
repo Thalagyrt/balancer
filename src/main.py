@@ -199,7 +199,7 @@ def migrate_workload(config):
                 )
             )
 
-        # Filter out nodes that would violate an anti-affinity rule, as well as candidates that
+        # Filter out nodes that would violate an anti-affinity rule, as well as candidates that have a positive affinity rule to another guest or a node
         for ha_rule in ha_rules:
             rules = ha_rule["resources"].split(",")
             rule_type = ha_rule["type"]

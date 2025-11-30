@@ -122,14 +122,9 @@ def migrate_workload(config):
             return False
 
     # Quickly pare the list down to VMs not in a backup state, and that are currently running on the source node.
-    candidates = list(
-        filter(
-            lambda resource: (not "lock" in resource)
-            and (resource["status"] == "running")
-            and (resource["node"] == source_node["node"]),
-            resources,
-        )
-    )
+    candidates = [c for c in resources if not "lock" in c]
+    candidates = [c for c in candidates if c["status"] == "running"]
+    candidates = [c for c in candidates if c["node"] == source_node["node"]]
 
     # If CPU, we specifically want to exclude the candidate with the highest utilization
     if mode == "cpu":
@@ -151,90 +146,74 @@ def migrate_workload(config):
         logger.debug(f"Considering candidate {candidate['name']}")
 
         # Filter out nodes that this guest would throw over the memory_max limit
-        target_nodes = list(
-            filter(
-                lambda candidate_node: candidate_node["mem"] + candidate["mem"]
-                < (candidate_node["maxmem"] * memory_max * 0.9),
-                target_nodes,
-            )
-        )
+        target_nodes = [
+            candidate_node
+            for candidate_node in target_nodes
+            if candidate_node["mem"] + candidate["mem"]
+            < (candidate_node["maxmem"] * memory_max * 0.9)
+        ]
 
         # Filter out nodes that this guest would throw over the cpu_max limit
-        target_nodes = list(
-            filter(
-                lambda candidate_node: candidate_node["cpu"]
+        target_nodes = [
+            candidate_node
+            for candidate_node in target_nodes
+            if candidate_node["cpu"]
+            + (
+                workload_cpu_as_host_pct(candidate, source_node)
+                * node_cpu_factor(source_node, candidate_node)
+            )
+            < (cpu_max * 0.9)
+        ]
+
+        # Filter out nodes that would not be a meet-in-the-middle
+        if mode == "mem":
+            target_nodes = [
+                candidate_node
+                for candidate_node in target_nodes
+                if (
+                    (candidate_node["mem"] + candidate["mem"])
+                    / candidate_node["maxmem"]
+                )
+                < mean([node_memory_pct(source_node), node_memory_pct(candidate_node)])
+            ]
+        elif mode == "cpu":
+            target_nodes = [
+                candidate_node
+                for candidate_node in target_nodes
+                if candidate_node["cpu"]
                 + (
                     workload_cpu_as_host_pct(candidate, source_node)
                     * node_cpu_factor(source_node, candidate_node)
                 )
-                < (cpu_max * 0.9),
-                target_nodes,
-            )
-        )
-
-        # Filter out nodes that would not be a meet-in-the-middle
-        if mode == "mem":
-            target_nodes = list(
-                filter(
-                    lambda candidate_node: (
-                        (candidate_node["mem"] + candidate["mem"])
-                        / candidate_node["maxmem"]
-                    )
-                    < mean(
-                        [node_memory_pct(source_node), node_memory_pct(candidate_node)]
-                    ),
-                    target_nodes,
-                )
-            )
-        elif mode == "cpu":
-            target_nodes = list(
-                filter(
-                    lambda candidate_node: candidate_node["cpu"]
-                    + (
-                        workload_cpu_as_host_pct(candidate, source_node)
-                        * node_cpu_factor(source_node, candidate_node)
-                    )
-                    < mean([source_node["cpu"], candidate_node["cpu"]]),
-                    target_nodes,
-                )
-            )
+                < mean([source_node["cpu"], candidate_node["cpu"]])
+            ]
 
         # Filter out nodes that would violate an anti-affinity rule, as well as candidates that have a positive affinity rule to another guest or a node
         for ha_rule in ha_rules:
-            rules = ha_rule["resources"].split(",")
+            rule_resources = ha_rule["resources"].split(",")
             rule_type = ha_rule["type"]
             rule_affinity = ha_rule["affinity"]
 
             if f'vm:{candidate["vmid"]}' in rules:
-                for resource in rules:
-                    vmid = int(resource.split(":")[1])
+                for rule_resource in rule_resourcess:
+                    vmid = int(rule_resource.split(":")[1])
+                    resource = next((r for r in resources if r["vmid"] == vmid), None)
 
-                    rule_resources = list(
-                        filter(lambda resource: resource["vmid"] == vmid, resources)
-                    )
-
-                    if not rule_resources:
+                    if not resource:
                         continue
 
-                    resource = rule_resources[0]
-
-                    node_names = list(
-                        map(
-                            lambda node: node["node"],
-                            filter(
-                                lambda node: node["node"] == resource["node"], nodes
-                            ),
-                        )
-                    )
+                    node_names = [
+                        node["node"]
+                        for node in nodes
+                        if node["node"] == resource["node"]
+                    ]
 
                     if rule_type == "resource-affinity" and rule_affinity == "negative":
-                        target_nodes = list(
-                            filter(
-                                lambda candidate_node: not candidate_node["node"]
-                                in node_names,
-                                target_nodes,
-                            )
-                        )
+                        target_nodes = [
+                            candidate_node
+                            for candidate_node in target_nodes
+                            if not candidate_node["node"] in node_names
+                        ]
                     else:
                         logger.debug(
                             "Candidate has either node affinity or vm affinity rule, skipping"

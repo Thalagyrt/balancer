@@ -9,7 +9,7 @@ import sys
 import random
 import time
 import pandas
-import statistics
+from statistics import mean
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +49,18 @@ def clamp(n, min_val, max_val):
     return max(min(n, max_val), min_val)
 
 
+def workload_cpu_as_host_pct(workload, node):
+    return workload["cpu"] * workload["maxcpu"] / node["maxcpu"]
+
+
+def node_cpu_factor(source_node, target_node):
+    return source_node["maxcpu"] / target_node["maxcpu"]
+
+
+def node_memory_pct(node):
+    return node["mem"] / node["maxmem"]
+
+
 def migrate_workload(config):
     api = api_connect(config)
     nodes = api.nodes.get()
@@ -59,7 +71,7 @@ def migrate_workload(config):
 
     # Set the dynamic memory threshold
     used_memory = list(map(lambda x: x["mem"] / x["maxmem"], nodes))
-    memory_threshold = statistics.mean(used_memory) * 1.2
+    memory_threshold = mean(used_memory) * 1.2
 
     logger.debug(f"Setting memory thresehold to {memory_threshold}")
 
@@ -70,11 +82,11 @@ def migrate_workload(config):
         logger.debug(f"A node is over the CPU maximum of {cpu_max}%")
         mode = "cpu"
         reason = "CPU maximum exceeded"
-    elif any(node["mem"] / node["maxmem"] > memory_max for node in nodes):
+    elif any(node_memory_pct(node) > memory_max for node in nodes):
         logger.debug(f"A node is over the memory maximum of {memory_max}%")
         mode = "mem"
         reason = "Memory maximum exceeded"
-    elif any(node["mem"] / node["maxmem"] > memory_threshold for node in nodes):
+    elif any(node_memory_pct(node) > memory_threshold for node in nodes):
         logger.debug(f"A node is over the memory threshold of {memory_threshold}")
         mode = "mem"
         reason = "Proactive balancing"
@@ -83,9 +95,7 @@ def migrate_workload(config):
         return False
 
     if mode == "mem":
-        nodes = sorted(
-            nodes, key=lambda node: node["mem"] / node["maxmem"], reverse=True
-        )
+        nodes = sorted(nodes, key=lambda node: node_memory_pct(node), reverse=True)
     elif mode == "cpu":
         nodes = sorted(nodes, key=lambda node: node["cpu"], reverse=True)
 
@@ -120,9 +130,7 @@ def migrate_workload(config):
     if mode == "cpu":
         candidates = sorted(
             candidates,
-            key=lambda candidate: candidate["cpu"]
-            * candidate["maxcpu"]
-            / source_node["maxcpu"],
+            key=lambda candidate: workload_cpu_as_host_pct(candidate, source_node),
             reverse=True,
         )[1:]
 
@@ -151,10 +159,8 @@ def migrate_workload(config):
             filter(
                 lambda x: x["cpu"]
                 + (
-                    # Scale the guest's CPU usage to host usage
-                    (candidate["cpu"] * candidate["maxcpu"] / source_node["maxcpu"])
-                    # Scale the resultant host usage to the target node's core count
-                    * (source_node["maxcpu"] / x["maxcpu"])
+                    workload_cpu_as_host_pct(candidate, source_node)
+                    * node_cpu_factor(source_node, x)
                 )
                 < (cpu_max * 0.9),
                 target_nodes,
@@ -166,13 +172,7 @@ def migrate_workload(config):
             target_nodes = list(
                 filter(
                     lambda x: ((x["mem"] + candidate["mem"]) / x["maxmem"])
-                    < (
-                        (
-                            (source_node["mem"] / source_node["maxmem"])
-                            + (x["mem"] / x["maxmem"])
-                        )
-                        / 2
-                    ),
+                    < mean([node_memory_pct(source_node), node_memory_pct(x)]),
                     target_nodes,
                 )
             )
@@ -181,12 +181,10 @@ def migrate_workload(config):
                 filter(
                     lambda x: x["cpu"]
                     + (
-                        # Scale the guest's CPU usage to host usage
-                        (candidate["cpu"] * candidate["maxcpu"] / source_node["maxcpu"])
-                        # Scale the resultant host usage to the target node's core count
-                        * (source_node["maxcpu"] / x["maxcpu"])
+                        workload_cpu_as_host_pct(candidate, source_node)
+                        * node_cpu_factor(source_node, x)
                     )
-                    < ((source_node["cpu"] + x["cpu"]) / 2),
+                    < mean([source_node["cpu"], x["cpu"]]),
                     target_nodes,
                 )
             )

@@ -114,7 +114,9 @@ def migrate_workload(config):
             resource["cpu"] = cpu_ema(f'vm_{resource["vmid"]}', resource["cpu"])
 
     if any(c for c in resources if c.get("lock") == "migrate"):
-        logger.debug(f"A resource currently has an active migrationlock, taking no action")
+        logger.debug(
+            f"A resource currently has an active migrationlock, taking no action"
+        )
         return False
 
     # Quickly pare the list down to workloads that can be migrated from this node.
@@ -191,30 +193,24 @@ def migrate_workload(config):
             rule_affinity = ha_rule["affinity"]
 
             if f'vm:{candidate["vmid"]}' in rule_resources:
-                for rule_resource in rule_resources:
-                    vmid = int(rule_resource.split(":")[1])
-                    resource = next((r for r in resources if r["vmid"] == vmid), None)
-
-                    if not resource:
-                        continue
-
-                    node_names = [
-                        node["node"]
-                        for node in nodes
-                        if node["node"] == resource["node"]
-                    ]
-
-                    if rule_type == "resource-affinity" and rule_affinity == "negative":
-                        target_nodes = [
-                            candidate_node
-                            for candidate_node in target_nodes
-                            if not candidate_node["node"] in node_names
-                        ]
-                    else:
-                        logger.debug(
-                            "Candidate has either node affinity or vm affinity rule, skipping"
+                if rule_type == "resource-affinity" and rule_affinity == "negative":
+                    for rule_resource in rule_resources:
+                        vmid = int(rule_resource.split(":")[1])
+                        resource = next(
+                            (r for r in resources if r["vmid"] == vmid), None
                         )
-                        target_nodes = []
+
+                        if resource:
+                            target_nodes = [
+                                candidate_node
+                                for candidate_node in target_nodes
+                                if not candidate_node["node"] == resource["node"]
+                            ]
+                else:
+                    logger.debug(
+                        "Candidate has either node affinity or vm affinity rule, skipping"
+                    )
+                    target_nodes = []
 
         if not target_nodes:
             logger.debug("No nodes fit selection criteria")

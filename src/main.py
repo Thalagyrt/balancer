@@ -116,7 +116,7 @@ def migrate_workload(config):
     # If CPU, we specifically want to exclude the candidate with the highest utilization
     if mode == "cpu":
         candidates = sorted(
-            candidates, key=lambda candidate: candidate["cpu"], reverse=True
+            candidates, key=lambda candidate: candidate["cpu"] * candidate["maxcpu"] / source_node["maxcpu"], reverse=True
         )[1:]
 
     if not candidates:

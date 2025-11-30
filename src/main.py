@@ -191,7 +191,7 @@ def migrate_workload(config):
             rule_affinity = ha_rule["affinity"]
 
             if f'vm:{candidate["vmid"]}' in rule_resources:
-                for rule_resource in rule_resourcess:
+                for rule_resource in rule_resources:
                     vmid = int(rule_resource.split(":")[1])
                     resource = next((r for r in resources if r["vmid"] == vmid), None)
 

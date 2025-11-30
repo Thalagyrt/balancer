@@ -83,9 +83,11 @@ def migrate_workload(config):
         return False
 
     if mode == "mem":
-      nodes = sorted(nodes, key=lambda node: node["mem"] / node["maxmem"], reverse=True)
+        nodes = sorted(
+            nodes, key=lambda node: node["mem"] / node["maxmem"], reverse=True
+        )
     elif mode == "cpu":
-      nodes = sorted(nodes, key=lambda node: node["cpu"], reverse=True)
+        nodes = sorted(nodes, key=lambda node: node["cpu"], reverse=True)
 
     source_node = nodes[0]
     target_nodes = nodes[1:]
@@ -117,7 +119,11 @@ def migrate_workload(config):
     # If CPU, we specifically want to exclude the candidate with the highest utilization
     if mode == "cpu":
         candidates = sorted(
-            candidates, key=lambda candidate: candidate["cpu"] * candidate["maxcpu"] / source_node["maxcpu"], reverse=True
+            candidates,
+            key=lambda candidate: candidate["cpu"]
+            * candidate["maxcpu"]
+            / source_node["maxcpu"],
+            reverse=True,
         )[1:]
 
     if not candidates:

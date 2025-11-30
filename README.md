@@ -19,7 +19,6 @@ The balancer is not intended for aesthetic load distribution or keeping resource
 
 This script makes specific assumptions about your Proxmox environment for correct operation:
 
-* All cluster nodes must be of similar size in terms of available RAM and CPU cores. Memory balancing is not based on percentages, but active used bytes. CPU balancing, while based on percentages, will not function well if the percentages mean wildly different things from node to node.
 * All cluster workloads (VMs) must reside on shared storage (e.g., Ceph, NFS, iSCSI) that is fully accessible by all cluster nodes. This is essential for enabling live migration.
 * Proxmox Virtual Environment (PVE) 9.0 or higher is required.
 * Only QEMU/KVM VMs are migrated; Linux Containers (LXC/CTs) are explicitly excluded as they currently cannot migrate without restarting the workload.
@@ -30,8 +29,8 @@ The following parameters are used to define the boundaries for when balancing ac
 
 | Parameter | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `cpu_max` | Float (0.5-0.9) | 0.8 (80%) | The sustained CPU utilization threshold that a migration cannot exceed on the target node. |
-| `memory_max` | Float (0.5-0.9) | 0.8 (80%) | The absolute memory utilization threshold that a migration cannot exceed on the target node. |
+| `cpu_max` | Float (0.5-0.9) | 0.8 (80%) | The sustained CPU utilization threshold beyond which we must trigger migrations. |
+| `memory_max` | Float (0.5-0.9) | 0.8 (80%) | The memory utilization threshold beyond which we must trigger migrations. |
 
 For high availability (HA) and reliability, it is suggested to run this script through a reverse proxy configured to communicate with all cluster nodes in a failover or round-robin manner. This ensures continuous operation even if one node is temporarily offline.
 

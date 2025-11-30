@@ -49,18 +49,23 @@ def clamp(n, min_val, max_val):
     return max(min(n, max_val), min_val)
 
 
+# Scale the guest's cpu to actual usage on the node it is on
+# Used to make computations easier between hosts
 def workload_cpu_as_host_pct(workload, node):
     return workload["cpu"] * workload["maxcpu"] / node["maxcpu"]
 
 
+# Computes a scaling factor between nodes, useful if one node has more/fewer cores than another
 def node_cpu_factor(source_node, target_node):
     return source_node["maxcpu"] / target_node["maxcpu"]
 
 
+# Computes the used percentage of memory on a given node
 def node_memory_pct(node):
     return node["mem"] / node["maxmem"]
 
 
+# Picks a workload and if necessary migrates it
 def migrate_workload(config):
     api = api_connect(config)
     nodes = api.nodes.get()
@@ -70,7 +75,7 @@ def migrate_workload(config):
     memory_max = clamp(config.get("balancer").get("memory_max", 0.8), 0.5, 0.9)
 
     # Set the dynamic memory threshold
-    used_memory = list(map(lambda x: x["mem"] / x["maxmem"], nodes))
+    used_memory = list(map(lambda node: node_memory_pct(node), nodes))
     memory_threshold = mean(used_memory) * 1.2
 
     logger.debug(f"Setting memory thresehold to {memory_threshold}")
@@ -148,8 +153,8 @@ def migrate_workload(config):
         # Filter out nodes that this guest would throw over the memory_max limit
         target_nodes = list(
             filter(
-                lambda x: x["mem"] + candidate["mem"]
-                < (x["maxmem"] * memory_max * 0.9),
+                lambda candidate_node: candidate_node["mem"] + candidate["mem"]
+                < (candidate_node["maxmem"] * memory_max * 0.9),
                 target_nodes,
             )
         )
@@ -157,10 +162,10 @@ def migrate_workload(config):
         # Filter out nodes that this guest would throw over the cpu_max limit
         target_nodes = list(
             filter(
-                lambda x: x["cpu"]
+                lambda candidate_node: candidate_node["cpu"]
                 + (
                     workload_cpu_as_host_pct(candidate, source_node)
-                    * node_cpu_factor(source_node, x)
+                    * node_cpu_factor(source_node, candidate_node)
                 )
                 < (cpu_max * 0.9),
                 target_nodes,
@@ -171,20 +176,25 @@ def migrate_workload(config):
         if mode == "mem":
             target_nodes = list(
                 filter(
-                    lambda x: ((x["mem"] + candidate["mem"]) / x["maxmem"])
-                    < mean([node_memory_pct(source_node), node_memory_pct(x)]),
+                    lambda candidate_node: (
+                        (candidate_node["mem"] + candidate["mem"])
+                        / candidate_node["maxmem"]
+                    )
+                    < mean(
+                        [node_memory_pct(source_node), node_memory_pct(candidate_node)]
+                    ),
                     target_nodes,
                 )
             )
         elif mode == "cpu":
             target_nodes = list(
                 filter(
-                    lambda x: x["cpu"]
+                    lambda candidate_node: candidate_node["cpu"]
                     + (
                         workload_cpu_as_host_pct(candidate, source_node)
-                        * node_cpu_factor(source_node, x)
+                        * node_cpu_factor(source_node, candidate_node)
                     )
-                    < mean([source_node["cpu"], x["cpu"]]),
+                    < mean([source_node["cpu"], candidate_node["cpu"]]),
                     target_nodes,
                 )
             )
@@ -198,14 +208,31 @@ def migrate_workload(config):
             if f'vm:{candidate["vmid"]}' in rules:
                 for resource in rules:
                     vmid = int(resource.split(":")[1])
-                    vm = list(filter(lambda x: x["vmid"] == vmid, resources))[0]
-                    rule_nodes = list(filter(lambda x: x["node"] == vm["node"], nodes))
-                    rule_node_names = list(map(lambda x: x["node"], rule_nodes))
+
+                    rule_resources = list(
+                        filter(lambda resource: resource["vmid"] == vmid, resources)
+                    )
+
+                    if not rule_resources:
+                        continue
+
+                    resource = rule_resources[0]
+
+                    node_names = list(
+                        map(
+                            lambda node: node["node"],
+                            filter(
+                                lambda node: node["node"] == resource["node"], nodes
+                            ),
+                        )
+                    )
 
                     if rule_type == "resource-affinity" and rule_affinity == "negative":
                         target_nodes = list(
                             filter(
-                                lambda x: not x["node"] in rule_node_names, target_nodes
+                                lambda candidate_node: not candidate_node["node"]
+                                in node_names,
+                                target_nodes,
                             )
                         )
                     else:

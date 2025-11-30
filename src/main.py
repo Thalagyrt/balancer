@@ -68,6 +68,18 @@ def node_memory_pct(node):
 # Picks a workload and if necessary migrates it
 def migrate_workload(config):
     api = api_connect(config)
+
+    backup_jobs = api.cluster.backup.get()
+    run_times = [job["next-run"] for job in backup_jobs if job["enabled"] == 1]
+    if run_times:
+        next_run = min(run_times)
+        if next_run - time.time() < 60:
+            logger.debug(
+                "A backup job is scheduled in the next minute, pausing for 90 seconds"
+            )
+            time.sleep(90)
+            return False
+
     nodes = api.nodes.get()
 
     # Grab our alarm thresholds

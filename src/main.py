@@ -89,7 +89,7 @@ def migrate_workload(config):
     memory_max = clamp(config.get("balancer").get("memory_max", 0.8), 0.5, 0.9)
 
     # Set the dynamic memory threshold
-    memory_threshold = mean(node_memory_pct(node) for node in nodes) * 1.2
+    memory_threshold = mean(node_memory_pct(node) for node in nodes) * 1.05
 
     logger.debug(f"Setting memory thresehold to {memory_threshold}")
 

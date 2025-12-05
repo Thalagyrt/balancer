@@ -82,6 +82,8 @@ def migrate_workload(config):
 
     nodes = api.nodes.get()
 
+    nodes = [node for node in nodes if node["status"] == "online"]
+
     # Grab our alarm thresholds
     cpu_max = clamp(config.get("balancer").get("cpu_max", 0.8), 0.5, 0.9)
     memory_max = clamp(config.get("balancer").get("memory_max", 0.8), 0.5, 0.9)

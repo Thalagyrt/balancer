@@ -69,7 +69,7 @@ This trigger for migration is a node above a high threshold.
 
 If all nodes are below the high thresholds, the script shifts focus to memory usage to proactively distribute workloads.
 
-* Dynamic Threshold: A `memory_threshold` is calculated, set 20% above the average memory utilization of all cluster nodes.
+* Dynamic Threshold: A `memory_threshold` is calculated, set 5% above the mean memory utilization of all cluster nodes.
 * If a node's current memory usage exceeds this dynamic `memory_threshold`, it is considered a candidate for balancing.
 * A random VM will be moved off the node until this threshold is no longer exceeded. The intent is to only act when nodes are severely out of balance.
 

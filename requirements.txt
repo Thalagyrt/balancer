@@ -1,4 +1,4 @@
-requests
-proxmoxer
-PyYAML
-pandas
+requests~=2.32.5
+proxmoxer~=2.2.0
+PyYAML~=6.0.3
+pandas~=2.3.3

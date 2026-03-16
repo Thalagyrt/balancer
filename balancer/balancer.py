@@ -3,14 +3,11 @@ __copyright__ = "Copyright (C) 2025 James P. Riley (@thalagyrt)"
 __license__ = "GPL-3.0"
 
 import logger
-import proxmoxer
-import yaml
-import sys
-import random
 import time
-import pandas
+import random
 from statistics import mean
 import utils
+import filters
 
 def migrate_workload(config):
     """Attempt to balance workloads by migrating a VM from overloaded to underutilized node.
@@ -113,9 +110,9 @@ def migrate_workload(config):
         )
         return False
 
-    candidates = utils.filter_resources(resources, source_node["node"])
-    candidates = utils.filter_running(candidates)
-    candidates = utils.filter_no_lock(candidates)
+    candidates = filters.filter_resources(resources, source_node["node"])
+    candidates = filters.filter_running(candidates)
+    candidates = filters.filter_no_lock(candidates)
 
     if mode == "cpu":
         candidates = sorted(
@@ -134,18 +131,18 @@ def migrate_workload(config):
     for candidate in candidates:
         logger.debug(f"Considering candidate {candidate['name']}")
 
-        target_nodes = utils.filter_memory_constraints(target_nodes, candidate, memory_max)
+        target_nodes = filters.filter_memory_constraints(target_nodes, candidate, memory_max)
 
-        target_nodes = utils.filter_cpu_constraints(
+        target_nodes = filters.filter_cpu_constraints(
             target_nodes, candidate, source_node, cpu_max
         )
 
         if mode == "mem":
-            target_nodes = utils.filter_memory_balance(target_nodes, candidate, source_node)
+            target_nodes = filters.filter_memory_balance(target_nodes, candidate, source_node)
         elif mode == "cpu":
-            target_nodes = utils.filter_cpu_balance(target_nodes, candidate, source_node)
+            target_nodes = filters.filter_cpu_balance(target_nodes, candidate, source_node)
 
-        target_nodes = utils.filter_ha_rules(target_nodes, candidate, resources, ha_rules)
+        target_nodes = filters.filter_ha_rules(target_nodes, candidate, resources, ha_rules)
 
         if not target_nodes:
             logger.debug("No nodes fit selection criteria")

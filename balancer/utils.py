@@ -1,6 +1,6 @@
 """Utility functions for the balancer daemon."""
 
-import logging
+import logger
 import proxmoxer
 import yaml
 import sys
@@ -10,10 +10,6 @@ import pandas
 from statistics import mean
 
 cpu_usage = {}
-
-
-def logger():
-    return logging.getLogger(__name__)
 
 
 def load_config():

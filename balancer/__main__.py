@@ -1,6 +1,6 @@
 import utils
 from balancer import migrate_workload
-import logging
+import logger
 import time
 
 def main():
@@ -18,11 +18,8 @@ def main():
         None (runs as long-lived daemon loop).
     """
     config = utils.load_config()
-    log_level = config.get("logging").get("level", "INFO")
-    logging.basicConfig(
-        format="%(asctime)s - %(levelname)s - %(message)s", level=log_level
-    )
-    utils.logger().info("Starting up.")
+    logger.setup_logging(config)
+    logger.info("Starting up.")
     while True:
         if migrate_workload(config):
             time.sleep(25)

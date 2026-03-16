@@ -2,7 +2,7 @@ __author__ = "James P. Riley"
 __copyright__ = "Copyright (C) 2025 James P. Riley (@thalagyrt)"
 __license__ = "GPL-3.0"
 
-import logging
+import logger
 import proxmoxer
 import yaml
 import sys
@@ -57,7 +57,7 @@ def migrate_workload(config):
     if run_times:
         next_run = min(run_times)
         if next_run - time.time() < 60:
-            utils.logger().debug(
+            logger.debug(
                 "A backup job is scheduled in the next minute, pausing for 90 seconds"
             )
             time.sleep(90)
@@ -71,25 +71,25 @@ def migrate_workload(config):
     memory_max = utils.clamp(config.get("balancer").get("memory_max", 0.8), 0.5, 0.9)
 
     memory_threshold = mean(utils.node_memory_pct(node) for node in nodes) * 1.05
-    utils.logger().debug(f"Setting memory thresehold to {memory_threshold}")
+    logger.debug(f"Setting memory thresehold to {memory_threshold}")
 
     for node in nodes:
         node["cpu"] = utils.cpu_ema(f'node_{node["node"]}', node["cpu"])
 
     if any(node["cpu"] > cpu_max for node in nodes):
-        utils.logger().debug(f"A node is over the CPU maximum of {cpu_max}%")
+        logger.debug(f"A node is over the CPU maximum of {cpu_max}%")
         mode = "cpu"
         reason = "CPU maximum exceeded"
     elif any(utils.node_memory_pct(node) > memory_max for node in nodes):
-        utils.logger().debug(f"A node is over the memory maximum of {memory_max}%")
+        logger.debug(f"A node is over the memory maximum of {memory_max}%")
         mode = "mem"
         reason = "Memory maximum exceeded"
     elif any(utils.node_memory_pct(node) > memory_threshold for node in nodes):
-        utils.logger().debug(f"A node is over the memory threshold of {memory_threshold}")
+        logger.debug(f"A node is over the memory threshold of {memory_threshold}")
         mode = "mem"
         reason = "Proactive balancing"
     else:
-        utils.logger().debug(f"No balancing is necessary")
+        logger.debug(f"No balancing is necessary")
         return False
 
     if mode == "mem":
@@ -100,7 +100,7 @@ def migrate_workload(config):
     source_node = nodes[0]
     target_nodes = nodes[1:]
 
-    utils.logger().debug(f'Looking for a workload on {source_node["node"]}')
+    logger.debug(f'Looking for a workload on {source_node["node"]}')
     resources = api.cluster.resources.get(type="vm")
 
     for resource in resources:
@@ -108,7 +108,7 @@ def migrate_workload(config):
             resource["cpu"] = utils.cpu_ema(f'vm_{resource["vmid"]}', resource["cpu"])
 
     if any(c for c in resources if c.get("lock") == "migrate"):
-        utils.logger().debug(
+        logger.debug(
             f"A resource currently has an active migrationlock, taking no action"
         )
         return False
@@ -125,14 +125,14 @@ def migrate_workload(config):
         )[1:]
 
     if not candidates:
-        utils.logger().debug("No candidates fit selection criteria")
+        logger.debug("No candidates fit selection criteria")
         return False
 
     ha_rules = api.cluster.ha.rules.get()
 
     random.shuffle(candidates)
     for candidate in candidates:
-        utils.logger().debug(f"Considering candidate {candidate['name']}")
+        logger.debug(f"Considering candidate {candidate['name']}")
 
         target_nodes = utils.filter_memory_constraints(target_nodes, candidate, memory_max)
 
@@ -148,13 +148,13 @@ def migrate_workload(config):
         target_nodes = utils.filter_ha_rules(target_nodes, candidate, resources, ha_rules)
 
         if not target_nodes:
-            utils.logger().debug("No nodes fit selection criteria")
+            logger.debug("No nodes fit selection criteria")
             continue
 
         # Pick the least utilized node by the current execution mode
         target_node = sorted(target_nodes, key=lambda node: node[mode])[0]
 
-        utils.logger().info(
+        logger.info(
             f"{reason}: Migrating {candidate['name']} from {source_node['node']} to {target_node['node']}"
         )
         opts = {"target": target_node["node"], "online": 1, "with-conntrack-state": 1}

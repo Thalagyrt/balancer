@@ -91,3 +91,11 @@ A migration is only considered valid if it results in a "favorable outcome", def
     * If the migration would result in the target node's utilization rising above this midpoint, it is rejected. This ensures the move genuinely lowers the highest utilization.
 
 From all nodes offering a favorable outcome, the VM is migrated to the least utilized eligible target node. If no favorable outcome is found, no migration takes place.
+
+---
+
+## AI Usage
+
+The actual algorithm and implementation was written by a human. A local LLM was later used to
+help write up docstrings rapidly, as well as to assist in some rapid extraction of functions with
+no changes to the actual workflow.

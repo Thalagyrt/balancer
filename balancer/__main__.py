@@ -3,6 +3,7 @@ from balancer import migrate_workload
 import logger
 import time
 
+
 def main():
     """Main entry point for the balancer daemon.
 

@@ -16,14 +16,12 @@ def setup_logging(config=None):
     Returns:
         The root logger that was configured.
     """
-    # Default configuration
     level = logging.INFO
     fmt = "%(asctime)s - %(levelname)s - %(message)s"
 
     if config and "logging" in config:
         log_config = config["logging"]
 
-        # Set log level
         level_map = {
             "DEBUG": logging.DEBUG,
             "INFO": logging.INFO,
@@ -35,14 +33,11 @@ def setup_logging(config=None):
         if level_str in level_map:
             level = level_map[level_str]
 
-        # Set format
         fmt = log_config.get("format", fmt)
 
-    # Configure root logger
     logger = logging.getLogger()
     logger.setLevel(level)
 
-    # Avoid adding handlers multiple times
     if not logger.handlers:
         handler = logging.StreamHandler()
         formatter = logging.Formatter(fmt, datefmt="%Y-%m-%d %H:%M:%S")
@@ -52,40 +47,63 @@ def setup_logging(config=None):
     return logger
 
 
-def get_logger(name=None):
-    """Get a named logger.
+def get_logger_or_fail(name=None):
+    """Get a named logger that will fail if the logger wasn't configured.
+
+    This is a defensive variant that raises an exception if the logger
+    wasn't set up via setup_logging(), making misconfigurations obvious.
 
     Args:
         name: Optional logger name. If None, uses __name__ as default.
 
     Returns:
         A configured logger instance.
+
+    Raises:
+        RuntimeError: If the logger wasn't configured via setup_logging().
     """
-    if name is None:
-        return logging.getLogger(__name__)
-    return logging.getLogger(name)
+    logger = logging.getLogger(name)
+    has_handlers = logger.handlers or (
+        logger.parent is not None and logger.parent.handlers
+    )
+    if not has_handlers:
+        raise RuntimeError(
+            f"Logger '{name}' is not configured. Call setup_logging() first."
+        )
+    return logger
 
 
-def debug(message, *args, **kwargs):
-    """Log a DEBUG message."""
-    logging.debug(message, *args, **kwargs)
+_default_logger = None
+
+
+def _get_default_logger():
+    """Get the module-level default logger."""
+    global _default_logger
+    if _default_logger is None:
+        _default_logger = get_logger_or_fail()
+    return _default_logger
 
 
 def info(message, *args, **kwargs):
-    """Log an INFO message."""
-    logging.info(message, *args, **kwargs)
+    """Log an INFO message using the default logger."""
+    _get_default_logger().info(message, *args, **kwargs)
+
+
+def debug(message, *args, **kwargs):
+    """Log a DEBUG message using the default logger."""
+    _get_default_logger().debug(message, *args, **kwargs)
 
 
 def warning(message, *args, **kwargs):
-    """Log a WARNING message."""
-    logging.warning(message, *args, **kwargs)
+    """Log a WARNING message using the default logger."""
+    _get_default_logger().warning(message, *args, **kwargs)
 
 
 def error(message, *args, **kwargs):
-    """Log an ERROR message."""
-    logging.error(message, *args, **kwargs)
+    """Log an ERROR message using the default logger."""
+    _get_default_logger().error(message, *args, **kwargs)
 
 
 def critical(message, *args, **kwargs):
-    """Log a CRITICAL message."""
-    logging.critical(message, *args, **kwargs)
+    """Log a CRITICAL message using the default logger."""
+    _get_default_logger().critical(message, *args, **kwargs)

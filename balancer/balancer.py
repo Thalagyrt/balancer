@@ -9,6 +9,7 @@ from statistics import mean
 import utils
 import filters
 
+
 def migrate_workload(config):
     """Attempt to balance workloads by migrating a VM from overloaded to underutilized node.
 
@@ -90,7 +91,9 @@ def migrate_workload(config):
         return False
 
     if mode == "mem":
-        nodes = sorted(nodes, key=lambda node: utils.node_memory_pct(node), reverse=True)
+        nodes = sorted(
+            nodes, key=lambda node: utils.node_memory_pct(node), reverse=True
+        )
     elif mode == "cpu":
         nodes = sorted(nodes, key=lambda node: node["cpu"], reverse=True)
 
@@ -117,7 +120,9 @@ def migrate_workload(config):
     if mode == "cpu":
         candidates = sorted(
             candidates,
-            key=lambda candidate: utils.workload_cpu_as_host_pct(candidate, source_node),
+            key=lambda candidate: utils.workload_cpu_as_host_pct(
+                candidate, source_node
+            ),
             reverse=True,
         )[1:]
 
@@ -131,18 +136,26 @@ def migrate_workload(config):
     for candidate in candidates:
         logger.debug(f"Considering candidate {candidate['name']}")
 
-        target_nodes = filters.filter_memory_constraints(target_nodes, candidate, memory_max)
+        target_nodes = filters.filter_memory_constraints(
+            target_nodes, candidate, memory_max
+        )
 
         target_nodes = filters.filter_cpu_constraints(
             target_nodes, candidate, source_node, cpu_max
         )
 
         if mode == "mem":
-            target_nodes = filters.filter_memory_balance(target_nodes, candidate, source_node)
+            target_nodes = filters.filter_memory_balance(
+                target_nodes, candidate, source_node
+            )
         elif mode == "cpu":
-            target_nodes = filters.filter_cpu_balance(target_nodes, candidate, source_node)
+            target_nodes = filters.filter_cpu_balance(
+                target_nodes, candidate, source_node
+            )
 
-        target_nodes = filters.filter_ha_rules(target_nodes, candidate, resources, ha_rules)
+        target_nodes = filters.filter_ha_rules(
+            target_nodes, candidate, resources, ha_rules
+        )
 
         if not target_nodes:
             logger.debug("No nodes fit selection criteria")

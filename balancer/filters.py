@@ -87,9 +87,7 @@ def filter_memory_constraints(target_nodes, candidate, memory_max):
     ]
 
 
-def filter_cpu_constraints(
-    target_nodes, candidate, source_node, cpu_max
-):
+def filter_cpu_constraints(target_nodes, candidate, source_node, cpu_max):
     """Filter out nodes that would exceed cpu_max if this guest migrated.
 
     Evaluates whether adding a candidate VM's scaled CPU to a target node would
@@ -146,7 +144,9 @@ def filter_memory_balance(target_nodes, candidate, source_node):
         candidate_node
         for candidate_node in target_nodes
         if ((candidate_node["mem"] + candidate["mem"]) / candidate_node["maxmem"])
-        < mean([utils.node_memory_pct(source_node), utils.node_memory_pct(candidate_node)])
+        < mean(
+            [utils.node_memory_pct(source_node), utils.node_memory_pct(candidate_node)]
+        )
     ]
 
 
@@ -176,7 +176,7 @@ def filter_cpu_balance(target_nodes, candidate, source_node):
         for candidate_node in target_nodes
         if candidate_node["cpu"]
         + (
-           utils.workload_cpu_as_host_pct(candidate, source_node)
+            utils.workload_cpu_as_host_pct(candidate, source_node)
             * utils.node_cpu_factor(source_node, candidate_node)
         )
         < mean([source_node["cpu"], candidate_node["cpu"]])
@@ -214,9 +214,7 @@ def filter_ha_rules(target_nodes, candidate, resources, ha_rules):
             if rule_type == "resource-affinity" and rule_affinity == "negative":
                 for rule_resource in rule_resources:
                     vmid = int(rule_resource.split(":")[1])
-                    resource = next(
-                        (r for r in resources if r["vmid"] == vmid), None
-                    )
+                    resource = next((r for r in resources if r["vmid"] == vmid), None)
 
                     if resource:
                         target_nodes = [

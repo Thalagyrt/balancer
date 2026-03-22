@@ -121,7 +121,6 @@ class TestApplyCpuEmaToNodes(unittest.TestCase):
             {"node": "node2", "cpu": 0.6},
         ]
         result = balancer._apply_cpu_ema_to_nodes(nodes, self.cpu_ema)
-        # First call returns the same value
         self.assertEqual(nodes[0]["cpu"], 0.5)
         self.assertEqual(nodes[1]["cpu"], 0.6)
 
@@ -158,7 +157,6 @@ class TestApplyCpuEmaToVms(unittest.TestCase):
             {"vmid": 102, "status": "running", "cpu": 0.3},
         ]
         balancer._apply_cpu_ema_to_vms(resources, self.cpu_ema)
-        # Only running VMs should have EMA applied
         self.assertIn("vm_100", self.cpu_ema._usage)
         self.assertNotIn("vm_101", self.cpu_ema._usage)
         self.assertIn("vm_102", self.cpu_ema._usage)

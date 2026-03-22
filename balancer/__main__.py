@@ -1,3 +1,7 @@
+__author__ = "James P. Riley"
+__copyright__ = "Copyright (C) 2025 James P. Riley (@thalagyrt)"
+__license__ = "GPL-3.0"
+
 from .config import load_config, validate_config
 from .ema import CpuEMA
 from .balancer import migrate_workload
@@ -21,7 +25,6 @@ def main():
     """
     config = load_config()
     
-    # Validate configuration before starting
     is_valid, errors = validate_config(config)
     if not is_valid:
         logger.critical("Configuration validation failed:")
@@ -32,7 +35,6 @@ def main():
     logger.setup_logging(config)
     logger.info("Starting up.")
 
-    # Validate API connection at startup
     try:
         api_client = api.api_connect(config)
         if not api.validate_api_connection(api_client):

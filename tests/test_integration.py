@@ -1,13 +1,4 @@
-"""Integration tests for migrate_workload with mocked Proxmox API.
-
-Tests the full migrate_workload flow with various scenarios:
-- No migration needed
-- Memory migration needed
-- CPU migration needed
-- Proactive memory migration based on multiplier threshold
-- Backup window scenarios
-- Migration lock scenarios
-"""
+"""Integration tests for migrate_workload with mocked Proxmox API."""
 
 import unittest
 from unittest.mock import MagicMock, patch, create_autospec
@@ -24,22 +15,7 @@ from balancer import constants
 
 
 class MockProxmoxAPI:
-    """Mock Proxmox API for integration testing."""
-    
     def __init__(self, nodes_data, resources_data, backup_jobs_data, ha_rules_data, migration_lock_state="success", migration_completion_state="success"):
-        """Initialize mock API with test data.
-        
-        Args:
-            nodes_data: List of node dictionaries
-            resources_data: List of VM resource dictionaries
-            backup_jobs_data: List of backup job dictionaries
-            ha_rules_data: List of HA rule dictionaries
-            migration_lock_state: "success" (lock appears then disappears), 
-                                  "fail" (lock never appears), or "never" (no lock checks)
-            migration_completion_state: "success" (VM moves to target),
-                                        "not_on_target" (VM disappears from source but not on target),
-                                        "timeout" (VM stays on source forever)
-        """
         self._nodes_data = nodes_data
         self._resources_data = resources_data
         self._backup_jobs_data = backup_jobs_data
@@ -377,14 +353,11 @@ class TestMigrateWorkloadProactiveMigration(unittest.TestCase):
     
     @patch("balancer.balancer.time.sleep")
     def test_proactive_migration_when_node_exceeds_threshold(self, mock_sleep):
-        """Migrates VM proactively when a node exceeds mean * multiplier threshold."""
-        # Mean = 43.33%, threshold = 45.5%, node1 at 60% exceeds threshold
         nodes = [
             {"node": "node1", "cpu": 0.4, "maxmem": 1000, "mem": 600, "status": "online", "maxcpu": 16},
             {"node": "node2", "cpu": 0.3, "maxmem": 1000, "mem": 400, "status": "online", "maxcpu": 16},
             {"node": "node3", "cpu": 0.2, "maxmem": 1000, "mem": 300, "status": "online", "maxcpu": 16},
         ]
-        # After migration: node3 at 35%, mean at 45%, passes balance check
         resources = [
             {"vmid": 100, "name": "vm1", "type": "qemu", "node": "node1", "status": "running", "cpu": 0.2, "mem": 50, "maxcpu": 4},
             {"vmid": 101, "name": "vm2", "type": "qemu", "node": "node2", "status": "running", "cpu": 0.1, "mem": 150, "maxcpu": 2},
@@ -401,8 +374,6 @@ class TestMigrateWorkloadProactiveMigration(unittest.TestCase):
         self.assertEqual(len(mock_api.migration_calls), 1)
     
     def test_no_proactive_migration_when_all_nodes_below_threshold(self):
-        """Does not migrate when all nodes are below proactive threshold."""
-        # Mean = 36.67%, threshold = 38.5%, all nodes below
         nodes = [
             {"node": "node1", "cpu": 0.3, "maxmem": 1000, "mem": 400, "status": "online", "maxcpu": 16},
             {"node": "node2", "cpu": 0.2, "maxmem": 1000, "mem": 350, "status": "online", "maxcpu": 16},
@@ -577,7 +548,6 @@ class TestMigrateWorkloadMigrationLock(unittest.TestCase):
             {"node": "node1", "cpu": 0.9, "maxmem": 1000, "mem": 400, "status": "online", "maxcpu": 16},
             {"node": "node2", "cpu": 0.3, "maxmem": 1000, "mem": 300, "status": "online", "maxcpu": 16},
         ]
-        # CPU mode requires 2+ VMs on source (highest-CPU excluded)
         resources = [
             {"vmid": 100, "name": "busy_vm", "type": "qemu", "node": "node1", "status": "running", "cpu": 0.6, "mem": 250, "maxcpu": 6},
             {"vmid": 101, "name": "light_vm", "type": "qemu", "node": "node1", "status": "running", "cpu": 0.4, "mem": 200, "maxcpu": 4},
@@ -644,7 +614,6 @@ class TestMigrateWorkloadEdgeCases(unittest.TestCase):
             {"node": "node2", "cpu": 0.8, "maxmem": 1000, "mem": 300, "status": "offline", "maxcpu": 16},
             {"node": "node3", "cpu": 0.3, "maxmem": 1000, "mem": 200, "status": "online", "maxcpu": 16},
         ]
-        # CPU mode requires 2+ VMs on source (highest-CPU excluded)
         resources = [
             {"vmid": 100, "name": "busy_vm", "type": "qemu", "node": "node1", "status": "running", "cpu": 0.6, "mem": 250, "maxcpu": 6},
             {"vmid": 101, "name": "light_vm", "type": "qemu", "node": "node1", "status": "running", "cpu": 0.4, "mem": 200, "maxcpu": 4},
@@ -666,7 +635,6 @@ class TestMigrateWorkloadEdgeCases(unittest.TestCase):
             {"node": "node1", "cpu": 0.9, "maxmem": 1000, "mem": 400, "status": "online", "maxcpu": 16},
             {"node": "node2", "cpu": 0.3, "maxmem": 1000, "mem": 300, "status": "online", "maxcpu": 16},
         ]
-        # CPU mode requires 2+ VMs on source (highest-CPU excluded)
         resources = [
             {"vmid": 100, "name": "busy_vm", "type": "qemu", "node": "node1", "status": "running", "cpu": 0.6, "mem": 250, "maxcpu": 6},
             {"vmid": 101, "name": "light_vm", "type": "qemu", "node": "node1", "status": "running", "cpu": 0.4, "mem": 200, "maxcpu": 4},
@@ -745,8 +713,6 @@ class TestMigrateWorkloadMigrationFailure(unittest.TestCase):
         
         result = balancer.migrate_workload(self.config, self.cpu_ema, mock_api)
         
-        # _execute_migration returns False, but migrate_workload doesn't check it
-        # For now, migration was attempted
         self.assertEqual(len(mock_api.migration_calls), 1)
     
     @patch("balancer.balancer.time.sleep")
@@ -769,8 +735,6 @@ class TestMigrateWorkloadMigrationFailure(unittest.TestCase):
         
         result = balancer.migrate_workload(self.config, self.cpu_ema, mock_api)
         
-        # _execute_migration returns False, but migrate_workload doesn't check it
-        # For now, migration was attempted
         self.assertEqual(len(mock_api.migration_calls), 1)
     
     @patch("balancer.balancer.time.sleep")
@@ -816,8 +780,6 @@ class TestMigrateWorkloadMigrationFailure(unittest.TestCase):
         
         result = balancer.migrate_workload(self.config, self.cpu_ema, mock_api)
         
-        # _execute_migration returns False, but migrate_workload doesn't check it
-        # For now, migration was attempted
         self.assertEqual(len(mock_api.migration_calls), 1)
 
 

@@ -1,3 +1,7 @@
+__author__ = "James P. Riley"
+__copyright__ = "Copyright (C) 2025 James P. Riley (@thalagyrt)"
+__license__ = "GPL-3.0"
+
 """Balancer daemon for Proxmox clusters."""
 
 from .constants import (

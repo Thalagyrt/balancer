@@ -11,7 +11,7 @@ from statistics import mean
 from . import filters
 from . import constants
 
-# Re-export constants for backward compatibility
+
 BACKUP_WINDOW_SECONDS = constants.BACKUP_WINDOW_SECONDS
 BACKUP_PAUSE_SECONDS = constants.BACKUP_PAUSE_SECONDS
 DEFAULT_CPU_MAX = constants.DEFAULT_CPU_MAX
@@ -207,7 +207,6 @@ def _get_vm_candidates(resources, source_node, mode):
     candidates = filters.filter_no_lock(candidates)
 
     if mode == "cpu":
-        # Exclude the highest-CPU candidate to avoid migrating the busiest VM
         candidates = sorted(
             candidates,
             key=lambda c: calculations.workload_cpu_as_host_pct(c, source_node),
@@ -289,14 +288,12 @@ def _execute_migration(api_client, source_node, target_node, candidate):
     """
     vmid = candidate["vmid"]
     
-    # Initiate migration
     opts = {"target": target_node["node"], "online": 1, "with-conntrack-state": 1}
     try:
         api_client.nodes(source_node["node"]).qemu(vmid).migrate().post(**opts)
     except Exception as e:
         logger.error(f"Error initiating migration: {e}")
 
-    # Wait for migration lock to appear (check every 5 seconds for up to 60 seconds)
     for _ in range(12):
         time.sleep(5)
         try:
@@ -307,11 +304,9 @@ def _execute_migration(api_client, source_node, target_node, candidate):
         except Exception as e:
             logger.debug(f"Error checking VM status: {e}")
     else:
-        # Never got the migration lock - migration failed to start
         logger.error(f"VM {vmid} migration failed to start - no migration lock appeared within 30 seconds")
         return False
     
-    # Wait for migration lock to disappear (check every 15 seconds for up to 30 minutes)
     failures = 0
     for _ in range(4*30):
         time.sleep(15)
@@ -352,7 +347,6 @@ def migrate_workload(config, cpu_ema, api_client):
         bool: True if a VM was migrated, False if no balancing needed or no
             viable candidates/targets.
     """
-    # Check for backup window
     if _check_backup_window(api_client):
         logger.debug(
             f"A backup job is scheduled in the next {constants.BACKUP_WINDOW_SECONDS} seconds, "
@@ -361,46 +355,38 @@ def migrate_workload(config, cpu_ema, api_client):
         time.sleep(constants.BACKUP_PAUSE_SECONDS)
         return False
 
-    # Get online nodes and compute thresholds
     nodes = _get_online_nodes(api_client)
     cpu_max, memory_max = _get_balancing_config(config)
     memory_threshold = _compute_dynamic_memory_threshold(nodes)
 
-    # Apply CPU smoothing and determine balancing mode
     _apply_cpu_ema_to_nodes(nodes, cpu_ema)
     mode, reason = _determine_balancing_mode(nodes, cpu_max, memory_max, memory_threshold)
 
     if mode is None:
         return False
 
-    # Select source and target nodes
     source_node, target_nodes = _select_source_and_targets(nodes, mode)
 
     logger.debug(f'Looking for a workload on {source_node["node"]}')
 
-    # Fetch and process VM resources
     resources = api_client.cluster.resources.get(type="vm")
     _apply_cpu_ema_to_vms(resources, cpu_ema)
 
     if _check_migration_lock(resources):
         return False
 
-    # Get migration candidates
     candidates = _get_vm_candidates(resources, source_node, mode)
 
     if not candidates:
         logger.debug("No candidates fit selection criteria")
         return False
 
-    # Get HA rules and shuffle candidates
     ha_rules = api_client.cluster.ha.rules.get()
     random.shuffle(candidates)
 
-    # Evaluate each candidate
     for candidate in candidates:
         logger.debug(f"Considering candidate {candidate['name']}")
 
-        # Apply filters to find viable targets
         viable_targets = _apply_candidate_filters(
             target_nodes, candidate, source_node, mode,
             cpu_max, memory_max, resources, ha_rules
@@ -412,7 +398,6 @@ def migrate_workload(config, cpu_ema, api_client):
         
         logger.debug(f"Nodes in consideration are {[f"{target_node['node']} ({calculations.node_memory_pct(target_node)})" for target_node in viable_targets]}")
 
-        # Select best target and execute migration
         target_node = _select_best_target(viable_targets, mode)
 
         logger.info(

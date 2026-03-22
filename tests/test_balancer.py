@@ -13,6 +13,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from balancer import balancer
+from balancer import calculations
 from balancer.ema import CpuEMA
 from balancer import logger
 
@@ -68,38 +69,6 @@ class TestGetBalancingConfig(unittest.TestCase):
         cpu_max, memory_max = balancer._get_balancing_config(config)
         self.assertEqual(cpu_max, balancer.THRESHOLD_CLAMP_MIN)
         self.assertEqual(memory_max, 0.7)
-
-
-class TestComputeDynamicMemoryThreshold(unittest.TestCase):
-    """Tests for _compute_dynamic_memory_threshold()."""
-
-    def setUp(self):
-        """Set up logger for each test."""
-        logger.setup_logging()
-
-    def test_computes_threshold_from_node_memory_percentages(self):
-        """Computes threshold as mean of node memory percentages times multiplier."""
-        nodes = [
-            {"node": "node1", "maxmem": 1000, "mem": 200},  # 20%
-            {"node": "node2", "maxmem": 1000, "mem": 400},  # 40%
-        ]
-        threshold = balancer._compute_dynamic_memory_threshold(nodes)
-        expected_mean = (0.2 + 0.4) / 2  # 30%
-        expected = expected_mean * balancer.MEMORY_THRESHOLD_MULTIPLIER
-        self.assertAlmostEqual(threshold, expected, places=4)
-
-    def test_returns_threshold_with_single_node(self):
-        """Returns threshold based on single node's memory percentage."""
-        nodes = [{"node": "node1", "maxmem": 1000, "mem": 500}]  # 50%
-        threshold = balancer._compute_dynamic_memory_threshold(nodes)
-        expected = 0.5 * balancer.MEMORY_THRESHOLD_MULTIPLIER
-        self.assertAlmostEqual(threshold, expected, places=4)
-
-    def test_applies_multiplier_correctly(self):
-        """Applies MEMORY_THRESHOLD_MULTIPLIER to the mean."""
-        nodes = [{"node": "node1", "maxmem": 1000, "mem": 100}]  # 10%
-        threshold = balancer._compute_dynamic_memory_threshold(nodes)
-        self.assertEqual(threshold, 0.1 * balancer.MEMORY_THRESHOLD_MULTIPLIER)
 
 
 class TestApplyCpuEmaToNodes(unittest.TestCase):

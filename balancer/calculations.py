@@ -4,6 +4,11 @@ __license__ = "GPL-3.0"
 
 """Calculation utilities for CPU and memory metrics."""
 
+from statistics import mean
+
+from . import logger
+from . import constants
+
 
 def clamp(n, min_val, max_val):
     """Clamp a value between min and max inclusive.
@@ -74,3 +79,15 @@ def node_memory_pct(node):
         float: The memory usage as a decimal fraction (e.g., 0.75 = 75%).
     """
     return node["mem"] / node["maxmem"]
+
+
+def compute_dynamic_memory_threshold(nodes):
+    """Compute dynamic memory threshold based on node averages.
+
+    Args:
+        nodes: List of node dictionaries.
+
+    Returns:
+        float: Dynamic memory threshold value.
+    """
+    return mean(node_memory_pct(node) for node in nodes) * constants.MEMORY_THRESHOLD_MULTIPLIER

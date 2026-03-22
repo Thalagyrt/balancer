@@ -7,7 +7,6 @@ from . import api
 from . import calculations
 import time
 import random
-from statistics import mean
 from . import filters
 from . import constants
 
@@ -78,20 +77,6 @@ def _get_balancing_config(config):
     return cpu_max, memory_max
 
 
-def _compute_dynamic_memory_threshold(nodes):
-    """Compute dynamic memory threshold based on node averages.
-
-    Args:
-        nodes: List of node dictionaries.
-
-    Returns:
-        float: Dynamic memory threshold value.
-    """
-    threshold = mean(calculations.node_memory_pct(node) for node in nodes) * constants.MEMORY_THRESHOLD_MULTIPLIER
-    logger.debug(f"Setting memory threshold to {threshold}")
-    return threshold
-
-
 def _apply_cpu_ema_to_nodes(nodes, cpu_ema):
     """Apply exponential moving average smoothing to node CPU values.
 
@@ -132,7 +117,7 @@ def _determine_balancing_mode(nodes, cpu_max, memory_max, memory_threshold):
         return "mem", "Memory maximum exceeded"
 
     if any(calculations.node_memory_pct(node) > memory_threshold for node in nodes):
-        logger.debug(f"A node is over the memory threshold of {round(memory_threshold*100, 2)}")
+        logger.debug(f"A node is over the memory threshold of {round(memory_threshold*100, 2)}%")
         return "mem", "Proactive balancing"
 
     logger.debug("No balancing is necessary")
@@ -397,7 +382,8 @@ def migrate_workload(config, cpu_ema, api_client):
 
     nodes = _get_online_nodes(api_client)
     cpu_max, memory_max = _get_balancing_config(config)
-    memory_threshold = _compute_dynamic_memory_threshold(nodes)
+    memory_threshold = calculations.compute_dynamic_memory_threshold(nodes)
+    logger.debug(f"Setting memory threshold to {round(memory_threshold*100, 2)}%")
 
     _apply_cpu_ema_to_nodes(nodes, cpu_ema)
     mode, reason = _determine_balancing_mode(nodes, cpu_max, memory_max, memory_threshold)
@@ -436,7 +422,7 @@ def migrate_workload(config, cpu_ema, api_client):
             logger.debug("No nodes fit selection criteria")
             continue
         
-        logger.debug(f"Nodes in consideration are {[f"{target_node['node']} ({calculations.node_memory_pct(target_node)})" for target_node in viable_targets]}")
+        logger.debug(f"Nodes in consideration are {[f"{target_node['node']} ({round(calculations.node_memory_pct(target_node)*100,2)}%)" for target_node in viable_targets]}")
 
         target_node = _select_best_target(viable_targets, mode)
 

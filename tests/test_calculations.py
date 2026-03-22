@@ -8,6 +8,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from balancer import calculations
+from balancer import constants
 
 
 class TestClamp(unittest.TestCase):
@@ -149,6 +150,74 @@ class TestNodeMemoryPct(unittest.TestCase):
         node = {"mem": 16000, "maxmem": 16000}
         result = calculations.node_memory_pct(node)
         self.assertEqual(result, 1.0)
+
+
+class TestComputeDynamicMemoryThreshold(unittest.TestCase):
+    """Tests for compute_dynamic_memory_threshold()."""
+
+    def test_computes_threshold_from_node_memory_percentages(self):
+        """Computes threshold as mean of node memory percentages times multiplier."""
+        nodes = [
+            {"node": "node1", "maxmem": 1000, "mem": 200},  # 20%
+            {"node": "node2", "maxmem": 1000, "mem": 400},  # 40%
+        ]
+        threshold = calculations.compute_dynamic_memory_threshold(nodes)
+        expected_mean = (0.2 + 0.4) / 2  # 30%
+        expected = expected_mean * constants.MEMORY_THRESHOLD_MULTIPLIER
+        self.assertAlmostEqual(threshold, expected, places=4)
+
+    def test_returns_threshold_with_single_node(self):
+        """Returns threshold based on single node's memory percentage."""
+        nodes = [{"node": "node1", "maxmem": 1000, "mem": 500}]  # 50%
+        threshold = calculations.compute_dynamic_memory_threshold(nodes)
+        expected = 0.5 * constants.MEMORY_THRESHOLD_MULTIPLIER
+        self.assertAlmostEqual(threshold, expected, places=4)
+
+    def test_applies_multiplier_correctly(self):
+        """Applies MEMORY_THRESHOLD_MULTIPLIER to the mean."""
+        nodes = [{"node": "node1", "maxmem": 1000, "mem": 100}]  # 10%
+        threshold = calculations.compute_dynamic_memory_threshold(nodes)
+        self.assertEqual(threshold, 0.1 * constants.MEMORY_THRESHOLD_MULTIPLIER)
+    
+    def test_computes_mean_threshold(self):
+        """Should compute mean of node memory percentages times multiplier."""
+        nodes = [
+            {"node": "node1", "mem": 8000, "maxmem": 16000},  # 50%
+            {"node": "node2", "mem": 8000, "maxmem": 16000},  # 50%
+        ]
+        result = calculations.compute_dynamic_memory_threshold(nodes)
+        # mean = 0.5, threshold = 0.5 * 1.05 = 0.525
+        self.assertAlmostEqual(result, 0.525, places=4)
+
+    def test_with_different_memory_usage(self):
+        """Should handle nodes with different memory usage."""
+        nodes = [
+            {"node": "node1", "mem": 4000, "maxmem": 16000},  # 25%
+            {"node": "node2", "mem": 12000, "maxmem": 16000},  # 75%
+        ]
+        result = calculations.compute_dynamic_memory_threshold(nodes)
+        # mean = (0.25 + 0.75) / 2 = 0.5, threshold = 0.5 * 1.05 = 0.525
+        self.assertAlmostEqual(result, 0.525, places=4)
+
+    def test_with_single_node(self):
+        """Should work with a single node."""
+        nodes = [
+            {"node": "node1", "mem": 10000, "maxmem": 16000},  # 62.5%
+        ]
+        result = calculations.compute_dynamic_memory_threshold(nodes)
+        # threshold = 0.625 * 1.05 = 0.65625
+        self.assertAlmostEqual(result, 0.65625, places=4)
+
+    def test_with_three_nodes(self):
+        """Should handle three or more nodes."""
+        nodes = [
+            {"node": "node1", "mem": 8000, "maxmem": 16000},  # 50%
+            {"node": "node2", "mem": 4000, "maxmem": 16000},  # 25%
+            {"node": "node3", "mem": 12000, "maxmem": 16000},  # 75%
+        ]
+        result = calculations.compute_dynamic_memory_threshold(nodes)
+        # mean = (0.5 + 0.25 + 0.75) / 3 = 0.5, threshold = 0.5 * 1.05 = 0.525
+        self.assertAlmostEqual(result, 0.525, places=4)
 
 
 if __name__ == "__main__":

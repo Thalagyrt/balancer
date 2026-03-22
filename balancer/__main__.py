@@ -43,11 +43,10 @@ def main():
         sys.exit(1)
 
     cpu_ema = CpuEMA()
-    
+
     while True:
         try:
-            if migrate_workload(config, cpu_ema, api_client):
-                time.sleep(25)
+            migrate_workload(config, cpu_ema, api_client)
         except proxmoxer.core.ResourceException as e:
             logger.error(f"API error during migration cycle: {e}")
         time.sleep(5)

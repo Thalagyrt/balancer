@@ -273,7 +273,10 @@ def _select_best_target(target_nodes, mode):
 
 
 def _execute_migration(api_client, source_node, target_node, candidate):
-    """Execute the VM migration via Proxmox API.
+    """Execute the VM migration via Proxmox API and monitor its progress.
+
+    Initiates live migration, then monitors the VM's lock status to confirm
+    the migration started and completed successfully.
 
     Args:
         api_client: Proxmox API client instance.
@@ -282,11 +285,54 @@ def _execute_migration(api_client, source_node, target_node, candidate):
         candidate: VM candidate dictionary.
 
     Returns:
-        bool: True if migration was initiated successfully.
+        bool: True if migration completed successfully, False if failed or timed out.
     """
+    vmid = candidate["vmid"]
+    
+    # Initiate migration
     opts = {"target": target_node["node"], "online": 1, "with-conntrack-state": 1}
-    api_client.nodes(source_node["node"]).qemu(candidate["vmid"]).migrate().post(**opts)
-    return True
+    try:
+        api_client.nodes(source_node["node"]).qemu(vmid).migrate().post(**opts)
+    except Exception as e:
+        logger.error(f"Error initiating migration: {e}")
+
+    # Wait for migration lock to appear (check every 5 seconds for up to 60 seconds)
+    for _ in range(12):
+        time.sleep(5)
+        try:
+            vm_status = api_client.nodes(source_node["node"]).qemu(vmid).status.current.get()
+            if vm_status.get("lock") == "migrate":
+                logger.info(f"Migration of {candidate['name']} has begun")
+                break
+        except Exception as e:
+            logger.debug(f"Error checking VM status: {e}")
+    else:
+        # Never got the migration lock - migration failed to start
+        logger.error(f"VM {vmid} migration failed to start - no migration lock appeared within 30 seconds")
+        return False
+    
+    # Wait for migration lock to disappear (check every 15 seconds for up to 30 minutes)
+    failures = 0
+    for _ in range(4*30):
+        time.sleep(15)
+        try:
+            if not vmid in [guest["vmid"] for guest in api_client.nodes(source_node["node"]).qemu().get()]:
+                if vmid in [guest["vmid"] for guest in api_client.nodes(target_node["node"]).qemu().get()]:
+                    logger.info(f"Migration of {candidate["name"]} is complete")
+                    return True
+                else:
+                    logger.error(f"VM {candidate["name"]} not found on {target_node["node"]} after migration!")
+                    return False
+            failures = 0
+        except Exception as e:
+            logger.debug(f"Error checking VM status: {e}")
+            failures = failures + 1
+            if failures > 5:
+                logger.error("Unable to check status 5 times consecutively. Aborting.")
+                return False
+    
+    logger.error(f"Migration of {candidate["name"]} did not finish after 30 minutes!")
+    return False
 
 
 def migrate_workload(config, cpu_ema, api_client):

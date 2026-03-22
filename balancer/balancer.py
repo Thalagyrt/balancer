@@ -272,11 +272,11 @@ def _select_best_target(target_nodes, mode):
         return sorted(target_nodes, key=lambda node: node["cpu"])[0]
 
 
-def _execute_migration(api, source_node, target_node, candidate):
+def _execute_migration(api_client, source_node, target_node, candidate):
     """Execute the VM migration via Proxmox API.
 
     Args:
-        api: Proxmox API client instance.
+        api_client: Proxmox API client instance.
         source_node: Source node dictionary.
         target_node: Target node dictionary.
         candidate: VM candidate dictionary.
@@ -285,11 +285,11 @@ def _execute_migration(api, source_node, target_node, candidate):
         bool: True if migration was initiated successfully.
     """
     opts = {"target": target_node["node"], "online": 1, "with-conntrack-state": 1}
-    api.nodes(source_node["node"]).qemu(candidate["vmid"]).migrate().post(**opts)
+    api_client.nodes(source_node["node"]).qemu(candidate["vmid"]).migrate().post(**opts)
     return True
 
 
-def migrate_workload(config, cpu_ema):
+def migrate_workload(config, cpu_ema, api_client):
     """Attempt to balance workloads by migrating a VM from overloaded to underutilized node.
 
     Checks node CPU/memory utilization, selects a candidate VM from the most
@@ -300,16 +300,12 @@ def migrate_workload(config, cpu_ema):
         config: Configuration dictionary with 'proxmox_api' credentials and
             'balancer' thresholds section.
         cpu_ema: CpuEMA instance for computing smoothed CPU values.
+        api_client: Proxmox API client instance.
 
     Returns:
         bool: True if a VM was migrated, False if no balancing needed or no
             viable candidates/targets.
-
-    Raises:
-        Exception: Any proxmoxer.API exceptions propagate.
     """
-    api_client = api.api_connect(config)
-
     # Check for backup window
     if _check_backup_window(api_client):
         logger.debug(

@@ -42,7 +42,7 @@ def validate_api_connection(api):
         bool: True if connection is valid, False otherwise.
     """
     try:
-        list(api.nodes())
+        list(api.nodes.get())
         return True
     except Exception as e:
         logger.error(f"API connection validation failed: {e}")

@@ -117,8 +117,7 @@ class TestMigrateWorkloadNoMigration(unittest.TestCase):
         
         mock_api = MockProxmoxAPI(nodes, resources, backup_jobs, ha_rules)
         
-        with patch("balancer.balancer.api.api_connect", return_value=mock_api):
-            result = balancer.migrate_workload(self.config, self.cpu_ema)
+        result = balancer.migrate_workload(self.config, self.cpu_ema, mock_api)
         
         self.assertFalse(result)
         self.assertEqual(len(mock_api.migration_calls), 0)
@@ -136,8 +135,7 @@ class TestMigrateWorkloadNoMigration(unittest.TestCase):
         
         mock_api = MockProxmoxAPI(nodes, resources, backup_jobs, ha_rules)
         
-        with patch("balancer.balancer.api.api_connect", return_value=mock_api):
-            result = balancer.migrate_workload(self.config, self.cpu_ema)
+        result = balancer.migrate_workload(self.config, self.cpu_ema, mock_api)
         
         self.assertFalse(result)
         self.assertEqual(len(mock_api.migration_calls), 0)
@@ -181,8 +179,7 @@ class TestMigrateWorkloadMemoryMigration(unittest.TestCase):
         
         mock_api = MockProxmoxAPI(nodes, resources, backup_jobs, ha_rules)
         
-        with patch("balancer.balancer.api.api_connect", return_value=mock_api):
-            result = balancer.migrate_workload(self.config, self.cpu_ema)
+        result = balancer.migrate_workload(self.config, self.cpu_ema, mock_api)
         
         self.assertTrue(result)
         self.assertEqual(len(mock_api.migration_calls), 1)
@@ -203,8 +200,7 @@ class TestMigrateWorkloadMemoryMigration(unittest.TestCase):
         
         mock_api = MockProxmoxAPI(nodes, resources, backup_jobs, ha_rules)
         
-        with patch("balancer.balancer.api.api_connect", return_value=mock_api):
-            result = balancer.migrate_workload(self.config, self.cpu_ema)
+        result = balancer.migrate_workload(self.config, self.cpu_ema, mock_api)
         
         self.assertTrue(result)
         self.assertEqual(mock_api.migration_calls[0]["opts"]["target"], "node3")
@@ -248,8 +244,7 @@ class TestMigrateWorkloadCpuMigration(unittest.TestCase):
         
         mock_api = MockProxmoxAPI(nodes, resources, backup_jobs, ha_rules)
         
-        with patch("balancer.balancer.api.api_connect", return_value=mock_api):
-            result = balancer.migrate_workload(self.config, self.cpu_ema)
+        result = balancer.migrate_workload(self.config, self.cpu_ema, mock_api)
         
         self.assertTrue(result)
         self.assertEqual(len(mock_api.migration_calls), 1)
@@ -271,8 +266,7 @@ class TestMigrateWorkloadCpuMigration(unittest.TestCase):
         
         mock_api = MockProxmoxAPI(nodes, resources, backup_jobs, ha_rules)
         
-        with patch("balancer.balancer.api.api_connect", return_value=mock_api):
-            result = balancer.migrate_workload(self.config, self.cpu_ema)
+        result = balancer.migrate_workload(self.config, self.cpu_ema, mock_api)
         
         self.assertTrue(result)
         # Should migrate light_vm, not busy_vm
@@ -294,8 +288,7 @@ class TestMigrateWorkloadCpuMigration(unittest.TestCase):
         
         mock_api = MockProxmoxAPI(nodes, resources, backup_jobs, ha_rules)
         
-        with patch("balancer.balancer.api.api_connect", return_value=mock_api):
-            result = balancer.migrate_workload(self.config, self.cpu_ema)
+        result = balancer.migrate_workload(self.config, self.cpu_ema, mock_api)
         
         self.assertTrue(result)
         self.assertEqual(mock_api.migration_calls[0]["opts"]["target"], "node3")
@@ -344,8 +337,7 @@ class TestMigrateWorkloadProactiveMigration(unittest.TestCase):
         
         mock_api = MockProxmoxAPI(nodes, resources, backup_jobs, ha_rules)
         
-        with patch("balancer.balancer.api.api_connect", return_value=mock_api):
-            result = balancer.migrate_workload(self.config, self.cpu_ema)
+        result = balancer.migrate_workload(self.config, self.cpu_ema, mock_api)
         
         self.assertTrue(result)
         self.assertEqual(mock_api.migration_calls[0]["opts"]["target"], "node3")
@@ -369,8 +361,7 @@ class TestMigrateWorkloadProactiveMigration(unittest.TestCase):
         
         mock_api = MockProxmoxAPI(nodes, resources, backup_jobs, ha_rules)
         
-        with patch("balancer.balancer.api.api_connect", return_value=mock_api):
-            result = balancer.migrate_workload(self.config, self.cpu_ema)
+        result = balancer.migrate_workload(self.config, self.cpu_ema, mock_api)
         
         self.assertFalse(result)
         self.assertEqual(len(mock_api.migration_calls), 0)
@@ -422,8 +413,7 @@ class TestMigrateWorkloadBackupWindow(unittest.TestCase):
         
         mock_api = MockProxmoxAPI(nodes, resources, backup_jobs, ha_rules)
         
-        with patch("balancer.balancer.api.api_connect", return_value=mock_api):
-            result = balancer.migrate_workload(self.config, self.cpu_ema)
+        result = balancer.migrate_workload(self.config, self.cpu_ema, mock_api)
         
         self.assertFalse(result)
         self.assertEqual(len(mock_api.migration_calls), 0)
@@ -453,8 +443,7 @@ class TestMigrateWorkloadBackupWindow(unittest.TestCase):
         
         mock_api = MockProxmoxAPI(nodes, resources, backup_jobs, ha_rules)
         
-        with patch("balancer.balancer.api.api_connect", return_value=mock_api):
-            result = balancer.migrate_workload(self.config, self.cpu_ema)
+        result = balancer.migrate_workload(self.config, self.cpu_ema, mock_api)
         
         self.assertTrue(result)
         self.assertEqual(len(mock_api.migration_calls), 1)
@@ -479,8 +468,7 @@ class TestMigrateWorkloadBackupWindow(unittest.TestCase):
         
         mock_api = MockProxmoxAPI(nodes, resources, backup_jobs, ha_rules)
         
-        with patch("balancer.balancer.api.api_connect", return_value=mock_api):
-            result = balancer.migrate_workload(self.config, self.cpu_ema)
+        result = balancer.migrate_workload(self.config, self.cpu_ema, mock_api)
         
         self.assertTrue(result)
         self.assertEqual(len(mock_api.migration_calls), 1)
@@ -524,8 +512,7 @@ class TestMigrateWorkloadMigrationLock(unittest.TestCase):
         
         mock_api = MockProxmoxAPI(nodes, resources, backup_jobs, ha_rules)
         
-        with patch("balancer.balancer.api.api_connect", return_value=mock_api):
-            result = balancer.migrate_workload(self.config, self.cpu_ema)
+        result = balancer.migrate_workload(self.config, self.cpu_ema, mock_api)
         
         self.assertFalse(result)
         self.assertEqual(len(mock_api.migration_calls), 0)
@@ -546,8 +533,7 @@ class TestMigrateWorkloadMigrationLock(unittest.TestCase):
         
         mock_api = MockProxmoxAPI(nodes, resources, backup_jobs, ha_rules)
         
-        with patch("balancer.balancer.api.api_connect", return_value=mock_api):
-            result = balancer.migrate_workload(self.config, self.cpu_ema)
+        result = balancer.migrate_workload(self.config, self.cpu_ema, mock_api)
         
         self.assertTrue(result)
         self.assertEqual(len(mock_api.migration_calls), 1)
@@ -568,8 +554,7 @@ class TestMigrateWorkloadMigrationLock(unittest.TestCase):
         
         mock_api = MockProxmoxAPI(nodes, resources, backup_jobs, ha_rules)
         
-        with patch("balancer.balancer.api.api_connect", return_value=mock_api):
-            result = balancer.migrate_workload(self.config, self.cpu_ema)
+        result = balancer.migrate_workload(self.config, self.cpu_ema, mock_api)
         
         self.assertFalse(result)
         self.assertEqual(len(mock_api.migration_calls), 0)
@@ -614,8 +599,7 @@ class TestMigrateWorkloadEdgeCases(unittest.TestCase):
         
         mock_api = MockProxmoxAPI(nodes, resources, backup_jobs, ha_rules)
         
-        with patch("balancer.balancer.api.api_connect", return_value=mock_api):
-            result = balancer.migrate_workload(self.config, self.cpu_ema)
+        result = balancer.migrate_workload(self.config, self.cpu_ema, mock_api)
         
         self.assertTrue(result)
         # Should migrate to node3, not node2
@@ -637,8 +621,7 @@ class TestMigrateWorkloadEdgeCases(unittest.TestCase):
         
         mock_api = MockProxmoxAPI(nodes, resources, backup_jobs, ha_rules)
         
-        with patch("balancer.balancer.api.api_connect", return_value=mock_api):
-            result = balancer.migrate_workload(self.config, self.cpu_ema)
+        result = balancer.migrate_workload(self.config, self.cpu_ema, mock_api)
         
         self.assertTrue(result)
         migration_opts = mock_api.migration_calls[0]["opts"]
@@ -661,8 +644,7 @@ class TestMigrateWorkloadEdgeCases(unittest.TestCase):
         
         mock_api = MockProxmoxAPI(nodes, resources, backup_jobs, ha_rules)
         
-        with patch("balancer.balancer.api.api_connect", return_value=mock_api):
-            result = balancer.migrate_workload(self.config, self.cpu_ema)
+        result = balancer.migrate_workload(self.config, self.cpu_ema, mock_api)
         
         self.assertFalse(result)
         self.assertEqual(len(mock_api.migration_calls), 0)

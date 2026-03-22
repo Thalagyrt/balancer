@@ -124,15 +124,15 @@ def _determine_balancing_mode(nodes, cpu_max, memory_max, memory_threshold):
                if no balancing is needed.
     """
     if any(node["cpu"] > cpu_max for node in nodes):
-        logger.debug(f"A node is over the CPU maximum of {cpu_max}%")
+        logger.debug(f"A node is over the CPU maximum of {cpu_max*100}%")
         return "cpu", "CPU maximum exceeded"
 
     if any(calculations.node_memory_pct(node) > memory_max for node in nodes):
-        logger.debug(f"A node is over the memory maximum of {memory_max}%")
+        logger.debug(f"A node is over the memory maximum of {memory_max*100}%")
         return "mem", "Memory maximum exceeded"
 
     if any(calculations.node_memory_pct(node) > memory_threshold for node in nodes):
-        logger.debug(f"A node is over the memory threshold of {memory_threshold}")
+        logger.debug(f"A node is over the memory threshold of {round(memory_threshold*100, 2)}")
         return "mem", "Proactive balancing"
 
     logger.debug("No balancing is necessary")

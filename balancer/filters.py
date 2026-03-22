@@ -2,8 +2,9 @@
 
 from statistics import mean
 
-import logger
-import utils
+from . import logger
+from . import calculations
+from . import constants
 
 
 def filter_resources(resources, source_node):
@@ -83,7 +84,7 @@ def filter_memory_constraints(target_nodes, candidate, memory_max):
         candidate_node
         for candidate_node in target_nodes
         if candidate_node["mem"] + candidate["mem"]
-        < (candidate_node["maxmem"] * memory_max * 0.9)
+        < (candidate_node["maxmem"] * memory_max * constants.CONSTRAINT_SAFETY_FACTOR)
     ]
 
 
@@ -113,10 +114,10 @@ def filter_cpu_constraints(target_nodes, candidate, source_node, cpu_max):
         for candidate_node in target_nodes
         if candidate_node["cpu"]
         + (
-            utils.workload_cpu_as_host_pct(candidate, source_node)
-            * utils.node_cpu_factor(source_node, candidate_node)
+            calculations.workload_cpu_as_host_pct(candidate, source_node)
+            * calculations.node_cpu_factor(source_node, candidate_node)
         )
-        < (cpu_max * 0.9)
+        < (cpu_max * constants.CONSTRAINT_SAFETY_FACTOR)
     ]
 
 
@@ -145,7 +146,7 @@ def filter_memory_balance(target_nodes, candidate, source_node):
         for candidate_node in target_nodes
         if ((candidate_node["mem"] + candidate["mem"]) / candidate_node["maxmem"])
         < mean(
-            [utils.node_memory_pct(source_node), utils.node_memory_pct(candidate_node)]
+            [calculations.node_memory_pct(source_node), calculations.node_memory_pct(candidate_node)]
         )
     ]
 
@@ -176,11 +177,40 @@ def filter_cpu_balance(target_nodes, candidate, source_node):
         for candidate_node in target_nodes
         if candidate_node["cpu"]
         + (
-            utils.workload_cpu_as_host_pct(candidate, source_node)
-            * utils.node_cpu_factor(source_node, candidate_node)
+            calculations.workload_cpu_as_host_pct(candidate, source_node)
+            * calculations.node_cpu_factor(source_node, candidate_node)
         )
         < mean([source_node["cpu"], candidate_node["cpu"]])
     ]
+
+
+def filter_online_nodes(nodes):
+    """Filter nodes to only those with online status.
+
+    Extracts only the nodes that are currently online from the Proxmox
+    cluster. This is used to ensure migration decisions only consider
+    healthy, reachable nodes.
+
+    Args:
+        nodes: List of node dictionaries from Proxmox API, each containing
+            at least a 'status' key with values like 'online', 'offline'.
+
+    Returns:
+        list: Filtered list containing only nodes where status == 'online'.
+    """
+    return [node for node in nodes if node["status"] == "online"]
+
+
+def filter_migration_lock(resources):
+    """Check if any resource has an active migration lock.
+
+    Args:
+        resources: List of VM resource dictionaries.
+
+    Returns:
+        bool: True if a migration lock is active, False otherwise.
+    """
+    return any(c.get("lock") == "migrate" for c in resources)
 
 
 def filter_ha_rules(target_nodes, candidate, resources, ha_rules):

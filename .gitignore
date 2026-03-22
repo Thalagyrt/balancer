@@ -1,2 +1,7 @@
 balancer.yaml
 __pycache__
+.venv
+coverage.xml
+htmlcov/
+.pytest_cache/
+.coverage

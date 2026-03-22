@@ -96,6 +96,7 @@ From all nodes offering a favorable outcome, the VM is migrated to the least uti
 
 ## AI Usage
 
-The actual algorithm and implementation was written by a human. A local LLM was later used to
-help write up docstrings rapidly, as well as to assist in some rapid extraction of functions with
-no changes to the actual workflow.
+The actual algorithm and implementation was written by a human with decades of software and systems
+experience. A local LLM was later used to help write up docstrings rapidly, as well as to assist in
+some rapid refactoring into functions and writing up some tests after that step. Everything was reviewed
+meticulously and tested prior to committing.

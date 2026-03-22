@@ -2,173 +2,381 @@ __author__ = "James P. Riley"
 __copyright__ = "Copyright (C) 2025 James P. Riley (@thalagyrt)"
 __license__ = "GPL-3.0"
 
-import logger
+from . import logger
+from . import api
+from . import calculations
 import time
 import random
 from statistics import mean
-import utils
-import filters
+from . import filters
+from . import constants
+
+# Re-export constants for backward compatibility
+BACKUP_WINDOW_SECONDS = constants.BACKUP_WINDOW_SECONDS
+BACKUP_PAUSE_SECONDS = constants.BACKUP_PAUSE_SECONDS
+DEFAULT_CPU_MAX = constants.DEFAULT_CPU_MAX
+DEFAULT_MEMORY_MAX = constants.DEFAULT_MEMORY_MAX
+THRESHOLD_CLAMP_MIN = constants.THRESHOLD_CLAMP_MIN
+THRESHOLD_CLAMP_MAX = constants.THRESHOLD_CLAMP_MAX
+MEMORY_THRESHOLD_MULTIPLIER = constants.MEMORY_THRESHOLD_MULTIPLIER
 
 
-def migrate_workload(config):
-    """Attempt to balance workloads by migrating a VM from overloaded to underutilized node.
+def _check_backup_window(api):
+    """Check if a backup job is scheduled within the backup window.
 
-    Performs the following steps in order:
-    1. Connect to Proxmox API using configuration credentials
-    2. Check for upcoming backup jobs and pause if one runs within 60 seconds
-    3. Fetch all nodes, filtering to only online ones
-    4. Parse CPU/memory thresholds from config (with sensible defaults)
-    5. Compute dynamic memory threshold based on current node averages
-    6. For each node, compute exponential moving average of CPU usage
-    7. Determine if migration is needed and in what mode (CPU/memory balancing)
-    8. Identify source (overloaded) and target nodes sorted by utilization
-    9. Fetch all VM resources and filter to candidates on the source node
-    10. Exclude locked (migrating) VMs from consideration
-    11. Apply mode-specific sorting to exclude highest-utilization candidates when in CPU mode
-    12. Shuffle candidates for non-deterministic migration order
-    13. For each candidate, apply all constraint filters:
-        - Memory max limit constraint
-        - CPU max limit constraint
-        - Memory balance (mem mode only)
-        - CPU balance (cpu mode only)
-        - HA rules (affinity/anti-affinity)
-    14. Select the target with lowest utilization for the current mode
-    15. Execute migration via Proxmox API
+    If a backup is imminent, pauses execution to avoid interfering with
+    backup operations.
 
     Args:
-        config: Configuration dictionary loaded from balancer.yaml, containing
-            'proxmox_api' credentials and 'balancer' thresholds section.
+        api: Proxmox API client instance.
 
     Returns:
-        bool: True if a VM was successfully migrated, False otherwise.
-               Returns False early if no balancing needed or no viable candidates.
-
-    Raises:
-        Exception: Any exception from proxmoxer.API calls will propagate.
-        Program exits with sys.exit(1) on config load failure.
+        bool: True if backup window is active (and we should pause),
+              False otherwise.
     """
-
-    api = utils.api_connect(config)
-
     backup_jobs = api.cluster.backup.get()
     run_times = [job["next-run"] for job in backup_jobs if job["enabled"] == 1]
     if run_times:
         next_run = min(run_times)
-        if next_run - time.time() < 60:
-            logger.debug(
-                "A backup job is scheduled in the next minute, pausing for 90 seconds"
-            )
-            time.sleep(90)
-            return False
+        if next_run - time.time() < constants.BACKUP_WINDOW_SECONDS:
+            return True
+    return False
 
+
+def _get_online_nodes(api):
+    """Fetch and filter to only online nodes.
+
+    Args:
+        api: Proxmox API client instance.
+
+    Returns:
+        list: List of online node dictionaries.
+    """
     nodes = api.nodes.get()
+    return filters.filter_online_nodes(nodes)
 
-    nodes = [node for node in nodes if node["status"] == "online"]
 
-    cpu_max = utils.clamp(config.get("balancer").get("cpu_max", 0.8), 0.5, 0.9)
-    memory_max = utils.clamp(config.get("balancer").get("memory_max", 0.8), 0.5, 0.9)
+def _get_balancing_config(config):
+    """Extract balancing thresholds from configuration.
 
-    memory_threshold = mean(utils.node_memory_pct(node) for node in nodes) * 1.05
-    logger.debug(f"Setting memory thresehold to {memory_threshold}")
+    Args:
+        config: Configuration dictionary with 'balancer' section.
 
+    Returns:
+        tuple: (cpu_max, memory_max) threshold values, clamped to valid range.
+    """
+    cpu_max = calculations.clamp(
+        config.get("balancer").get("cpu_max", constants.DEFAULT_CPU_MAX),
+        constants.THRESHOLD_CLAMP_MIN,
+        constants.THRESHOLD_CLAMP_MAX
+    )
+    memory_max = calculations.clamp(
+        config.get("balancer").get("memory_max", constants.DEFAULT_MEMORY_MAX),
+        constants.THRESHOLD_CLAMP_MIN,
+        constants.THRESHOLD_CLAMP_MAX
+    )
+    return cpu_max, memory_max
+
+
+def _compute_dynamic_memory_threshold(nodes):
+    """Compute dynamic memory threshold based on node averages.
+
+    Args:
+        nodes: List of node dictionaries.
+
+    Returns:
+        float: Dynamic memory threshold value.
+    """
+    threshold = mean(calculations.node_memory_pct(node) for node in nodes) * constants.MEMORY_THRESHOLD_MULTIPLIER
+    logger.debug(f"Setting memory threshold to {threshold}")
+    return threshold
+
+
+def _apply_cpu_ema_to_nodes(nodes, cpu_ema):
+    """Apply exponential moving average smoothing to node CPU values.
+
+    Args:
+        nodes: List of node dictionaries (modified in place).
+        cpu_ema: CpuEMA instance for computing smoothed CPU values.
+
+    Returns:
+        list: The same nodes list with smoothed CPU values.
+    """
     for node in nodes:
-        node["cpu"] = utils.cpu_ema(f'node_{node["node"]}', node["cpu"])
+        node["cpu"] = cpu_ema.update(f'node_{node["node"]}', node["cpu"])
+    return nodes
 
+
+def _determine_balancing_mode(nodes, cpu_max, memory_max, memory_threshold):
+    """Determine if balancing is needed and which mode to use.
+
+    Checks nodes against CPU/memory thresholds and determines the
+    appropriate balancing mode.
+
+    Args:
+        nodes: List of node dictionaries.
+        cpu_max: Maximum CPU threshold.
+        memory_max: Maximum memory threshold.
+        memory_threshold: Dynamic memory threshold for proactive balancing.
+
+    Returns:
+        tuple: (mode, reason) where mode is 'cpu' or 'mem', or (None, None)
+               if no balancing is needed.
+    """
     if any(node["cpu"] > cpu_max for node in nodes):
         logger.debug(f"A node is over the CPU maximum of {cpu_max}%")
-        mode = "cpu"
-        reason = "CPU maximum exceeded"
-    elif any(utils.node_memory_pct(node) > memory_max for node in nodes):
-        logger.debug(f"A node is over the memory maximum of {memory_max}%")
-        mode = "mem"
-        reason = "Memory maximum exceeded"
-    elif any(utils.node_memory_pct(node) > memory_threshold for node in nodes):
-        logger.debug(f"A node is over the memory threshold of {memory_threshold}")
-        mode = "mem"
-        reason = "Proactive balancing"
-    else:
-        logger.debug(f"No balancing is necessary")
-        return False
+        return "cpu", "CPU maximum exceeded"
 
+    if any(calculations.node_memory_pct(node) > memory_max for node in nodes):
+        logger.debug(f"A node is over the memory maximum of {memory_max}%")
+        return "mem", "Memory maximum exceeded"
+
+    if any(calculations.node_memory_pct(node) > memory_threshold for node in nodes):
+        logger.debug(f"A node is over the memory threshold of {memory_threshold}")
+        return "mem", "Proactive balancing"
+
+    logger.debug("No balancing is necessary")
+    return None, None
+
+
+def _select_source_and_targets(nodes, mode):
+    """Sort nodes by utilization and select source/target nodes.
+
+    Args:
+        nodes: List of node dictionaries.
+        mode: Balancing mode ('cpu' or 'mem').
+
+    Returns:
+        tuple: (source_node, target_nodes) where source is the most
+               overloaded node and target_nodes is a list of remaining nodes.
+    """
     if mode == "mem":
         nodes = sorted(
-            nodes, key=lambda node: utils.node_memory_pct(node), reverse=True
+            nodes, key=lambda node: calculations.node_memory_pct(node), reverse=True
         )
-    elif mode == "cpu":
+    else:  # mode == "cpu"
         nodes = sorted(nodes, key=lambda node: node["cpu"], reverse=True)
 
-    source_node = nodes[0]
-    target_nodes = nodes[1:]
+    return nodes[0], nodes[1:]
 
-    logger.debug(f'Looking for a workload on {source_node["node"]}')
-    resources = api.cluster.resources.get(type="vm")
 
+def _apply_cpu_ema_to_vms(resources, cpu_ema):
+    """Apply exponential moving average smoothing to VM CPU values.
+
+    Args:
+        resources: List of VM resource dictionaries (modified in place).
+        cpu_ema: CpuEMA instance for computing smoothed CPU values.
+
+    Returns:
+        list: The same resources list with smoothed CPU values for running VMs.
+    """
     for resource in resources:
         if resource["status"] == "running":
-            resource["cpu"] = utils.cpu_ema(f'vm_{resource["vmid"]}', resource["cpu"])
+            resource["cpu"] = cpu_ema.update(f'vm_{resource["vmid"]}', resource["cpu"])
+    return resources
 
-    if any(c for c in resources if c.get("lock") == "migrate"):
-        logger.debug(
-            f"A resource currently has an active migrationlock, taking no action"
-        )
-        return False
 
+def _check_migration_lock(resources):
+    """Check if any resource has an active migration lock.
+
+    Args:
+        resources: List of VM resource dictionaries.
+
+    Returns:
+        bool: True if a migration lock is active, False otherwise.
+    """
+    if filters.filter_migration_lock(resources):
+        logger.debug("A resource currently has an active migration lock, taking no action")
+        return True
+    return False
+
+
+def _get_vm_candidates(resources, source_node, mode):
+    """Filter and sort VM migration candidates.
+
+    Args:
+        resources: List of all VM resource dictionaries.
+        source_node: Source node dictionary.
+        mode: Balancing mode ('cpu' or 'mem').
+
+    Returns:
+        list: Filtered and sorted list of candidate VMs.
+    """
     candidates = filters.filter_resources(resources, source_node["node"])
     candidates = filters.filter_running(candidates)
     candidates = filters.filter_no_lock(candidates)
 
     if mode == "cpu":
+        # Exclude the highest-CPU candidate to avoid migrating the busiest VM
         candidates = sorted(
             candidates,
-            key=lambda candidate: utils.workload_cpu_as_host_pct(
-                candidate, source_node
-            ),
+            key=lambda c: calculations.workload_cpu_as_host_pct(c, source_node),
             reverse=True,
         )[1:]
+
+    return candidates
+
+
+def _apply_candidate_filters(target_nodes, candidate, source_node, mode, cpu_max, memory_max, resources, ha_rules):
+    """Apply all constraint filters to find viable target nodes.
+
+    Args:
+        target_nodes: List of potential target node dictionaries.
+        candidate: VM candidate dictionary.
+        source_node: Source node dictionary.
+        mode: Balancing mode ('cpu' or 'mem').
+        cpu_max: Maximum CPU threshold.
+        memory_max: Maximum memory threshold.
+        resources: All VM resources (for HA rule evaluation).
+        ha_rules: HA rules from Proxmox API.
+
+    Returns:
+        list: Filtered list of viable target nodes.
+    """
+    target_nodes = filters.filter_memory_constraints(
+        target_nodes, candidate, memory_max
+    )
+    target_nodes = filters.filter_cpu_constraints(
+        target_nodes, candidate, source_node, cpu_max
+    )
+
+    if mode == "mem":
+        target_nodes = filters.filter_memory_balance(
+            target_nodes, candidate, source_node
+        )
+    else:  # mode == "cpu"
+        target_nodes = filters.filter_cpu_balance(
+            target_nodes, candidate, source_node
+        )
+
+    target_nodes = filters.filter_ha_rules(
+        target_nodes, candidate, resources, ha_rules
+    )
+
+    return target_nodes
+
+
+def _select_best_target(target_nodes, mode):
+    """Select the least utilized target node for the given mode.
+
+    Args:
+        target_nodes: List of viable target node dictionaries.
+        mode: Balancing mode ('cpu' or 'mem').
+
+    Returns:
+        dict: The target node with lowest utilization for the mode.
+    """
+    if mode == "mem":
+        return sorted(target_nodes, key=lambda node: calculations.node_memory_pct(node))[0]
+    else:  # mode == "cpu"
+        return sorted(target_nodes, key=lambda node: node["cpu"])[0]
+
+
+def _execute_migration(api, source_node, target_node, candidate):
+    """Execute the VM migration via Proxmox API.
+
+    Args:
+        api: Proxmox API client instance.
+        source_node: Source node dictionary.
+        target_node: Target node dictionary.
+        candidate: VM candidate dictionary.
+
+    Returns:
+        bool: True if migration was initiated successfully.
+    """
+    opts = {"target": target_node["node"], "online": 1, "with-conntrack-state": 1}
+    api.nodes(source_node["node"]).qemu(candidate["vmid"]).migrate().post(**opts)
+    return True
+
+
+def migrate_workload(config, cpu_ema):
+    """Attempt to balance workloads by migrating a VM from overloaded to underutilized node.
+
+    Checks node CPU/memory utilization, selects a candidate VM from the most
+    overloaded node, filters viable target nodes based on constraints and HA rules,
+    then initiates live migration.
+
+    Args:
+        config: Configuration dictionary with 'proxmox_api' credentials and
+            'balancer' thresholds section.
+        cpu_ema: CpuEMA instance for computing smoothed CPU values.
+
+    Returns:
+        bool: True if a VM was migrated, False if no balancing needed or no
+            viable candidates/targets.
+
+    Raises:
+        Exception: Any proxmoxer.API exceptions propagate.
+    """
+    api_client = api.api_connect(config)
+
+    # Check for backup window
+    if _check_backup_window(api_client):
+        logger.debug(
+            f"A backup job is scheduled in the next {constants.BACKUP_WINDOW_SECONDS} seconds, "
+            f"pausing for {constants.BACKUP_PAUSE_SECONDS} seconds"
+        )
+        time.sleep(constants.BACKUP_PAUSE_SECONDS)
+        return False
+
+    # Get online nodes and compute thresholds
+    nodes = _get_online_nodes(api_client)
+    cpu_max, memory_max = _get_balancing_config(config)
+    memory_threshold = _compute_dynamic_memory_threshold(nodes)
+
+    # Apply CPU smoothing and determine balancing mode
+    _apply_cpu_ema_to_nodes(nodes, cpu_ema)
+    mode, reason = _determine_balancing_mode(nodes, cpu_max, memory_max, memory_threshold)
+
+    if mode is None:
+        return False
+
+    # Select source and target nodes
+    source_node, target_nodes = _select_source_and_targets(nodes, mode)
+
+    logger.debug(f'Looking for a workload on {source_node["node"]}')
+
+    # Fetch and process VM resources
+    resources = api_client.cluster.resources.get(type="vm")
+    _apply_cpu_ema_to_vms(resources, cpu_ema)
+
+    if _check_migration_lock(resources):
+        return False
+
+    # Get migration candidates
+    candidates = _get_vm_candidates(resources, source_node, mode)
 
     if not candidates:
         logger.debug("No candidates fit selection criteria")
         return False
 
-    ha_rules = api.cluster.ha.rules.get()
-
+    # Get HA rules and shuffle candidates
+    ha_rules = api_client.cluster.ha.rules.get()
     random.shuffle(candidates)
+
+    # Evaluate each candidate
     for candidate in candidates:
         logger.debug(f"Considering candidate {candidate['name']}")
 
-        target_nodes = filters.filter_memory_constraints(
-            target_nodes, candidate, memory_max
+        # Apply filters to find viable targets
+        viable_targets = _apply_candidate_filters(
+            target_nodes, candidate, source_node, mode,
+            cpu_max, memory_max, resources, ha_rules
         )
 
-        target_nodes = filters.filter_cpu_constraints(
-            target_nodes, candidate, source_node, cpu_max
-        )
-
-        if mode == "mem":
-            target_nodes = filters.filter_memory_balance(
-                target_nodes, candidate, source_node
-            )
-        elif mode == "cpu":
-            target_nodes = filters.filter_cpu_balance(
-                target_nodes, candidate, source_node
-            )
-
-        target_nodes = filters.filter_ha_rules(
-            target_nodes, candidate, resources, ha_rules
-        )
-
-        if not target_nodes:
+        if not viable_targets:
             logger.debug("No nodes fit selection criteria")
             continue
+        
+        logger.debug(f"Nodes in consideration are {[f"{target_node['node']} ({calculations.node_memory_pct(target_node)})" for target_node in viable_targets]}")
 
-        # Pick the least utilized node by the current execution mode
-        target_node = sorted(target_nodes, key=lambda node: node[mode])[0]
+        # Select best target and execute migration
+        target_node = _select_best_target(viable_targets, mode)
 
         logger.info(
             f"{reason}: Migrating {candidate['name']} from {source_node['node']} to {target_node['node']}"
         )
-        opts = {"target": target_node["node"], "online": 1, "with-conntrack-state": 1}
-        api.nodes(source_node["node"]).qemu(candidate["vmid"]).migrate().post(**opts)
+        _execute_migration(api_client, source_node, target_node, candidate)
 
         return True
 

@@ -75,22 +75,27 @@ tests/
 ```python
 config = load_config()
 cpu_ema = CpuEMA()
+api_client = api_connect(config)
 while True:
-    if migrate_workload(config, cpu_ema):
-        time.sleep(25)  # Pause after migration
-    time.sleep(5)       # Check interval
+    try:
+        migrate_workload(config, cpu_ema, api_client)
+    except proxmoxer.core.ResourceException as e:
+        logger.error(f"API error during migration cycle: {e}")
+    time.sleep(5)  # Check interval
 ```
 
 ### Migration Decision Flow (`balancer.py`)
 1. `_check_backup_window()` - Pause if backup imminent
 2. `_get_online_nodes()` - Filter to online nodes only
-3. `_apply_cpu_ema_to_nodes()` - Smooth CPU metrics
-4. `_determine_balancing_mode()` - Decide if/what to balance
-5. `_select_source_and_targets()` - Pick overloaded node
-6. `_get_vm_candidates()` - Filter VMs on source
-7. `_apply_candidate_filters()` - Apply constraints
-8. `_select_best_target()` - Pick least utilized target
-9. `_execute_migration()` - Trigger live migration
+3. `_get_balancing_config()` - Extract and clamp thresholds from config
+4. `compute_dynamic_memory_threshold()` - Calculate proactive memory threshold
+5. `_apply_cpu_ema_to_nodes()` - Smooth CPU metrics
+6. `_determine_balancing_mode()` - Decide if/what to balance
+7. `_select_source_and_targets()` - Pick overloaded node
+8. `_get_vm_candidates()` - Filter VMs on source
+9. `_apply_candidate_filters()` - Apply constraints
+10. `_select_best_target()` - Pick least utilized target
+11. `_execute_migration()` - Trigger live migration with monitoring
 
 ### Key Design Principles
 
@@ -99,6 +104,8 @@ while True:
 - **Meet-in-the-middle**: Migrations must not simply flip imbalance (target must stay below midpoint)
 - **Safety margins**: Constraint checks use 90% of thresholds (`CONSTRAINT_SAFETY_FACTOR = 0.9`)
 - **Backup awareness**: Pauses 90s if backup scheduled within 60s
+- **Dynamic memory threshold**: Proactive balancing triggered at mean memory usage × 1.05
+- **Migration monitoring**: Waits for migration lock (60s timeout) and completion (30m timeout)
 
 ---
 
@@ -227,6 +234,25 @@ scaled_cpu = workload_cpu_as_host_pct(vm, target_node)
 factor = node_cpu_factor(source_node, target_node)
 ```
 
+### Dynamic Memory Threshold (`calculations.py`)
+```python
+from statistics import mean
+
+def compute_dynamic_memory_threshold(nodes):
+    return mean(node_memory_pct(node) for node in nodes) * MEMORY_THRESHOLD_MULTIPLIER
+# Triggers proactive balancing when any node exceeds mean × 1.05
+```
+
+### Migration Monitoring (`balancer.py`)
+```python
+# Migration workflow:
+# 1. _execute_migration() initiates live migration via API
+# 2. _await_migration_start() waits for migration lock (60s timeout, 5s intervals)
+# 3. _await_migration_complete() monitors VM status (30m timeout, 15s intervals)
+#    - Checks VM disappears from source and appears on target
+#    - Handles transient API errors with 5-attempt tolerance
+```
+
 ---
 
 ## Gotchas & Non-Obvious Patterns
@@ -251,6 +277,16 @@ factor = node_cpu_factor(source_node, target_node)
 
 10. **Only QEMU VMs**: LXC containers are never migrated (filtered by API query `type="vm"`).
 
+11. **Migration monitoring**: `_execute_migration()` now monitors migration progress:
+    - Waits for migration lock to appear (60s timeout, 12 checks at 5s intervals)
+    - Waits for VM to appear on target (30m timeout, 120 checks at 15s intervals)
+    - Tolerates transient API errors (5 consecutive failures aborts)
+    - Returns `False` on timeout or failure, allowing balancer to continue
+
+12. **API error handling**: Main loop catches `proxmoxer.core.ResourceException` to prevent crashes from transient API failures.
+
+13. **Dynamic memory threshold**: Computed as mean of all node memory usage × 1.05, enabling proactive balancing before hitting hard limits.
+
 ---
 
 ## Dependencies
@@ -260,6 +296,7 @@ factor = node_cpu_factor(source_node, target_node)
 - `PyYAML~=6.0.3` - Config parsing
 - `pandas~=2.3.3` - EMA calculations
 - `pytest~=8.0`, `pytest-cov~=4.1` - Testing
+- `pandas~=2.3.3` - EMA calculations
 
 ---
 

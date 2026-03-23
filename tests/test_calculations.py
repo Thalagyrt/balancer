@@ -178,7 +178,7 @@ class TestComputeDynamicMemoryThreshold(unittest.TestCase):
         nodes = [{"node": "node1", "maxmem": 1000, "mem": 100}]  # 10%
         threshold = calculations.compute_dynamic_memory_threshold(nodes)
         self.assertEqual(threshold, 0.1 * constants.MEMORY_THRESHOLD_MULTIPLIER)
-    
+
     def test_computes_mean_threshold(self):
         """Should compute mean of node memory percentages times multiplier."""
         nodes = [

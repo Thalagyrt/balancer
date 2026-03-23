@@ -10,7 +10,6 @@ import random
 from . import filters
 from . import constants
 
-
 BACKUP_WINDOW_SECONDS = constants.BACKUP_WINDOW_SECONDS
 BACKUP_PAUSE_SECONDS = constants.BACKUP_PAUSE_SECONDS
 DEFAULT_CPU_MAX = constants.DEFAULT_CPU_MAX
@@ -67,12 +66,12 @@ def _get_balancing_config(config):
     cpu_max = calculations.clamp(
         config.get("balancer").get("cpu_max", constants.DEFAULT_CPU_MAX),
         constants.THRESHOLD_CLAMP_MIN,
-        constants.THRESHOLD_CLAMP_MAX
+        constants.THRESHOLD_CLAMP_MAX,
     )
     memory_max = calculations.clamp(
         config.get("balancer").get("memory_max", constants.DEFAULT_MEMORY_MAX),
         constants.THRESHOLD_CLAMP_MIN,
-        constants.THRESHOLD_CLAMP_MAX
+        constants.THRESHOLD_CLAMP_MAX,
     )
     return cpu_max, memory_max
 
@@ -117,7 +116,9 @@ def _determine_balancing_mode(nodes, cpu_max, memory_max, memory_threshold):
         return "mem", "Memory maximum exceeded"
 
     if any(calculations.node_memory_pct(node) > memory_threshold for node in nodes):
-        logger.debug(f"A node is over the memory threshold of {round(memory_threshold*100, 2)}%")
+        logger.debug(
+            f"A node is over the memory threshold of {round(memory_threshold*100, 2)}%"
+        )
         return "mem", "Proactive balancing"
 
     logger.debug("No balancing is necessary")
@@ -171,7 +172,9 @@ def _check_migration_lock(resources):
         bool: True if a migration lock is active, False otherwise.
     """
     if filters.filter_migration_lock(resources):
-        logger.debug("A resource currently has an active migration lock, taking no action")
+        logger.debug(
+            "A resource currently has an active migration lock, taking no action"
+        )
         return True
     return False
 
@@ -201,7 +204,9 @@ def _get_vm_candidates(resources, source_node, mode):
     return candidates
 
 
-def _apply_candidate_filters(target_nodes, candidate, source_node, mode, cpu_max, memory_max, resources, ha_rules):
+def _apply_candidate_filters(
+    target_nodes, candidate, source_node, mode, cpu_max, memory_max, resources, ha_rules
+):
     """Apply all constraint filters to find viable target nodes.
 
     Args:
@@ -229,13 +234,9 @@ def _apply_candidate_filters(target_nodes, candidate, source_node, mode, cpu_max
             target_nodes, candidate, source_node
         )
     else:  # mode == "cpu"
-        target_nodes = filters.filter_cpu_balance(
-            target_nodes, candidate, source_node
-        )
+        target_nodes = filters.filter_cpu_balance(target_nodes, candidate, source_node)
 
-    target_nodes = filters.filter_ha_rules(
-        target_nodes, candidate, resources, ha_rules
-    )
+    target_nodes = filters.filter_ha_rules(target_nodes, candidate, resources, ha_rules)
 
     return target_nodes
 
@@ -251,7 +252,9 @@ def _select_best_target(target_nodes, mode):
         dict: The target node with lowest utilization for the mode.
     """
     if mode == "mem":
-        return sorted(target_nodes, key=lambda node: calculations.node_memory_pct(node))[0]
+        return sorted(
+            target_nodes, key=lambda node: calculations.node_memory_pct(node)
+        )[0]
     else:  # mode == "cpu"
         return sorted(target_nodes, key=lambda node: node["cpu"])[0]
 
@@ -272,20 +275,20 @@ def _execute_migration(api_client, source_node, target_node, candidate):
         bool: True if migration completed successfully, False if failed or timed out.
     """
     vmid = candidate["vmid"]
-    
+
     opts = {"target": target_node["node"], "online": 1, "with-conntrack-state": 1}
     try:
         api_client.nodes(source_node["node"]).qemu(vmid).migrate().post(**opts)
     except Exception as e:
         logger.error(f"Error initiating migration: {e}")
-    
+
     # Wait for migration to start and complete
     if not _await_migration_start(api_client, source_node, candidate):
         return False
-    
+
     if not _await_migration_complete(api_client, source_node, target_node, candidate):
         return False
-    
+
     return True
 
 
@@ -305,14 +308,20 @@ def _await_migration_start(api_client, source_node, candidate):
     for _ in range(12):
         time.sleep(5)
         try:
-            vm_status = api_client.nodes(source_node["node"]).qemu(candidate["vmid"]).status.current.get()
+            vm_status = (
+                api_client.nodes(source_node["node"])
+                .qemu(candidate["vmid"])
+                .status.current.get()
+            )
             if vm_status.get("lock") == "migrate":
                 logger.info(f"Migration of {candidate["name"]} has begun")
                 return True
         except Exception as e:
             logger.debug(f"Error checking VM status: {e}")
-    
-    logger.error(f"VM {candidate["vmid"]} migration failed to start - no migration lock appeared within 30 seconds")
+
+    logger.error(
+        f"VM {candidate["vmid"]} migration failed to start - no migration lock appeared within 30 seconds"
+    )
     return False
 
 
@@ -333,15 +342,23 @@ def _await_migration_complete(api_client, source_node, target_node, candidate):
         bool: True if migration completed successfully, False if failed or timed out.
     """
     failures = 0
-    for _ in range(4*30):
+    for _ in range(4 * 30):
         time.sleep(15)
         try:
-            if candidate["vmid"] not in [guest["vmid"] for guest in api_client.nodes(source_node["node"]).qemu().get()]:
-                if candidate["vmid"] in [guest["vmid"] for guest in api_client.nodes(target_node["node"]).qemu().get()]:
+            if candidate["vmid"] not in [
+                guest["vmid"]
+                for guest in api_client.nodes(source_node["node"]).qemu().get()
+            ]:
+                if candidate["vmid"] in [
+                    guest["vmid"]
+                    for guest in api_client.nodes(target_node["node"]).qemu().get()
+                ]:
                     logger.info(f"Migration of {candidate["name"]} is complete")
                     return True
                 else:
-                    logger.error(f"VM {candidate["name"]} not found on {target_node['node']} after migration!")
+                    logger.error(
+                        f"VM {candidate["name"]} not found on {target_node['node']} after migration!"
+                    )
                     return False
             failures = 0
         except Exception as e:
@@ -350,7 +367,7 @@ def _await_migration_complete(api_client, source_node, target_node, candidate):
             if failures > 5:
                 logger.error("Unable to check status 5 times consecutively. Aborting.")
                 return False
-    
+
     logger.error(f"Migration of {candidate["name"]} did not finish after 30 minutes!")
     return False
 
@@ -386,7 +403,9 @@ def migrate_workload(config, cpu_ema, api_client):
     logger.debug(f"Setting memory threshold to {round(memory_threshold*100, 2)}%")
 
     _apply_cpu_ema_to_nodes(nodes, cpu_ema)
-    mode, reason = _determine_balancing_mode(nodes, cpu_max, memory_max, memory_threshold)
+    mode, reason = _determine_balancing_mode(
+        nodes, cpu_max, memory_max, memory_threshold
+    )
 
     if mode is None:
         return False
@@ -414,15 +433,23 @@ def migrate_workload(config, cpu_ema, api_client):
         logger.debug(f"Considering candidate {candidate['name']}")
 
         viable_targets = _apply_candidate_filters(
-            target_nodes, candidate, source_node, mode,
-            cpu_max, memory_max, resources, ha_rules
+            target_nodes,
+            candidate,
+            source_node,
+            mode,
+            cpu_max,
+            memory_max,
+            resources,
+            ha_rules,
         )
 
         if not viable_targets:
             logger.debug("No nodes fit selection criteria")
             continue
-        
-        logger.debug(f"Nodes in consideration are {[f"{target_node['node']} ({round(calculations.node_memory_pct(target_node)*100,2)}%)" for target_node in viable_targets]}")
+
+        logger.debug(
+            f"Nodes in consideration are {[f"{target_node['node']} ({round(calculations.node_memory_pct(target_node)*100,2)}%)" for target_node in viable_targets]}"
+        )
 
         target_node = _select_best_target(viable_targets, mode)
 

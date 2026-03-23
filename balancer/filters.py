@@ -150,7 +150,10 @@ def filter_memory_balance(target_nodes, candidate, source_node):
         for candidate_node in target_nodes
         if ((candidate_node["mem"] + candidate["mem"]) / candidate_node["maxmem"])
         < mean(
-            [calculations.node_memory_pct(source_node), calculations.node_memory_pct(candidate_node)]
+            [
+                calculations.node_memory_pct(source_node),
+                calculations.node_memory_pct(candidate_node),
+            ]
         )
     ]
 

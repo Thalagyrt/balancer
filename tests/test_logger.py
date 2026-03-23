@@ -27,6 +27,7 @@ class TestLoggerSetup(unittest.TestCase):
             root_logger.removeHandler(handler)
         # Reset module-level default logger
         from balancer import logger
+
         logger._default_logger = None
 
     def tearDown(self):
@@ -35,6 +36,7 @@ class TestLoggerSetup(unittest.TestCase):
         for handler in root_logger.handlers[:]:
             root_logger.removeHandler(handler)
         from balancer import logger
+
         logger._default_logger = None
 
     def test_setup_logging_default(self):
@@ -90,6 +92,7 @@ class TestGetLoggerOrFail(unittest.TestCase):
         for handler in root_logger.handlers[:]:
             root_logger.removeHandler(handler)
         from balancer import logger
+
         logger._default_logger = None
 
     def tearDown(self):
@@ -98,6 +101,7 @@ class TestGetLoggerOrFail(unittest.TestCase):
         for handler in root_logger.handlers[:]:
             root_logger.removeHandler(handler)
         from balancer import logger
+
         logger._default_logger = None
 
     def test_get_logger_or_fail_raises_when_not_configured(self):
@@ -127,6 +131,7 @@ class TestDefaultLoggerFunctions(unittest.TestCase):
     def setUp(self):
         """Setup logging and capture output."""
         from balancer import logger
+
         logger._default_logger = None
         root_logger = logging.getLogger()
         for handler in root_logger.handlers[:]:
@@ -147,6 +152,7 @@ class TestDefaultLoggerFunctions(unittest.TestCase):
         for handler in root_logger.handlers[:]:
             root_logger.removeHandler(handler)
         from balancer import logger
+
         logger._default_logger = None
 
     def test_info_logs_message(self):
@@ -192,6 +198,7 @@ class TestDefaultLoggerFunctions(unittest.TestCase):
         for handler in root_logger.handlers[:]:
             root_logger.removeHandler(handler)
         from balancer import logger
+
         logger._default_logger = None
 
         with self.assertRaises(RuntimeError):

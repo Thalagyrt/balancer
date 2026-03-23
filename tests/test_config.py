@@ -88,7 +88,7 @@ class TestValidateConfig(unittest.TestCase):
             },
             "logging": {
                 "level": "INFO",
-            }
+            },
         }
         is_valid, errors = config.validate_config(config_dict)
         self.assertTrue(is_valid)
@@ -119,7 +119,7 @@ class TestValidateConfig(unittest.TestCase):
             },
             "logging": {
                 "level": "INFO",
-            }
+            },
         }
         is_valid, errors = config.validate_config(config_dict)
         self.assertFalse(is_valid)
@@ -141,7 +141,7 @@ class TestValidateConfig(unittest.TestCase):
             },
             "logging": {
                 "level": "INFO",
-            }
+            },
         }
         is_valid, errors = config.validate_config(config_dict)
         self.assertFalse(is_valid)
@@ -163,7 +163,7 @@ class TestValidateConfig(unittest.TestCase):
             },
             "logging": {
                 "level": "INFO",
-            }
+            },
         }
         is_valid, errors = config.validate_config(config_dict)
         self.assertFalse(is_valid)
@@ -185,7 +185,7 @@ class TestValidateConfig(unittest.TestCase):
             },
             "logging": {
                 "level": "INFO",
-            }
+            },
         }
         is_valid, errors = config.validate_config(config_dict)
         self.assertFalse(is_valid)
@@ -207,7 +207,7 @@ class TestValidateConfig(unittest.TestCase):
             },
             "logging": {
                 "level": "INFO",
-            }
+            },
         }
         is_valid, errors = config.validate_config(config_dict)
         self.assertFalse(is_valid)
@@ -226,7 +226,7 @@ class TestValidateConfig(unittest.TestCase):
             },
             "logging": {
                 "level": "INFO",
-            }
+            },
         }
         is_valid, errors = config.validate_config(config_dict)
         self.assertFalse(is_valid)
@@ -248,7 +248,7 @@ class TestValidateConfig(unittest.TestCase):
             },
             "logging": {
                 "level": "INFO",
-            }
+            },
         }
         is_valid, errors = config.validate_config(config_dict)
         self.assertFalse(is_valid)
@@ -270,7 +270,7 @@ class TestValidateConfig(unittest.TestCase):
             },
             "logging": {
                 "level": "INFO",
-            }
+            },
         }
         is_valid, errors = config.validate_config(config_dict)
         self.assertFalse(is_valid)
@@ -290,7 +290,7 @@ class TestValidateConfig(unittest.TestCase):
             "balancer": {
                 "cpu_max": 0.8,
                 "memory_max": 0.8,
-            }
+            },
         }
         is_valid, errors = config.validate_config(config_dict)
         self.assertFalse(is_valid)
@@ -311,7 +311,7 @@ class TestValidateConfig(unittest.TestCase):
                 "cpu_max": 0.8,
                 "memory_max": 0.8,
             },
-            "logging": {}
+            "logging": {},
         }
         is_valid, errors = config.validate_config(config_dict)
         self.assertFalse(is_valid)
@@ -345,7 +345,7 @@ class TestValidateConfig(unittest.TestCase):
             },
             "logging": {
                 "level": "INFO",
-            }
+            },
         }
         is_valid, errors = config.validate_config(config_dict)
         self.assertTrue(is_valid)

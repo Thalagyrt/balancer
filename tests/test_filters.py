@@ -170,7 +170,9 @@ class TestFilterCpuConstraints(unittest.TestCase):
         candidate = {"vmid": 100, "cpu": 0.1, "maxcpu": 4}
         source_node = {"maxcpu": 16}
         cpu_max = 0.8
-        result = filters.filter_cpu_constraints(target_nodes, candidate, source_node, cpu_max)
+        result = filters.filter_cpu_constraints(
+            target_nodes, candidate, source_node, cpu_max
+        )
         # Scaled CPU contribution: 0.1 * 4 / 16 * 16/16 = 0.025
         # node1: 0.3 + 0.025 = 0.325 < 0.72 ✓
         # node2: 0.6 + 0.025 = 0.625 < 0.72 ✓
@@ -184,7 +186,9 @@ class TestFilterCpuConstraints(unittest.TestCase):
         candidate = {"vmid": 100, "cpu": 0.1, "maxcpu": 4}
         source_node = {"maxcpu": 16}
         cpu_max = 0.8
-        result = filters.filter_cpu_constraints(target_nodes, candidate, source_node, cpu_max)
+        result = filters.filter_cpu_constraints(
+            target_nodes, candidate, source_node, cpu_max
+        )
         # Scaled CPU: 0.1 * 4 / 16 * 16/16 = 0.025
         # node1: 0.7 + 0.025 = 0.725 > 0.72 ✗
         self.assertEqual(len(result), 0)

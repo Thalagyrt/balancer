@@ -211,7 +211,12 @@ class TestDetermineBalancingMode(unittest.TestCase):
     def test_cpu_check_takes_precedence_over_memory(self):
         """CPU check is evaluated before memory checks."""
         nodes = [
-            {"node": "node1", "cpu": 0.9, "maxmem": 1000, "mem": 900},  # 90% CPU, 90% mem
+            {
+                "node": "node1",
+                "cpu": 0.9,
+                "maxmem": 1000,
+                "mem": 900,
+            },  # 90% CPU, 90% mem
         ]
         mode, reason = balancer._determine_balancing_mode(
             nodes, cpu_max=0.8, memory_max=0.8, memory_threshold=0.7

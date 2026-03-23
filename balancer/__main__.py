@@ -24,14 +24,14 @@ def main():
         None (runs as long-lived daemon loop).
     """
     config = load_config()
-    
+
     is_valid, errors = validate_config(config)
     if not is_valid:
         logger.critical("Configuration validation failed:")
         for error in errors:
             logger.critical(f"  - {error}")
         return
-    
+
     logger.setup_logging(config)
     logger.info("Starting up.")
 

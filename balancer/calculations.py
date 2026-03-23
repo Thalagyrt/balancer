@@ -90,4 +90,7 @@ def compute_dynamic_memory_threshold(nodes):
     Returns:
         float: Dynamic memory threshold value.
     """
-    return mean(node_memory_pct(node) for node in nodes) * constants.MEMORY_THRESHOLD_MULTIPLIER
+    return (
+        mean(node_memory_pct(node) for node in nodes)
+        * constants.MEMORY_THRESHOLD_MULTIPLIER
+    )

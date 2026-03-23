@@ -72,7 +72,7 @@ class TestValidateApiConnection(unittest.TestCase):
         """Should return True when API connection is valid."""
         mock_api = MagicMock()
         mock_api.nodes.get.return_value = [{"node": "node1", "status": "online"}]
-        
+
         result = api.validate_api_connection(mock_api)
         self.assertTrue(result)
         mock_api.nodes.get.assert_called_once()
@@ -81,7 +81,7 @@ class TestValidateApiConnection(unittest.TestCase):
         """Should return False when API connection fails."""
         mock_api = MagicMock()
         mock_api.nodes.get.side_effect = Exception("Connection refused")
-        
+
         result = api.validate_api_connection(mock_api)
         self.assertFalse(result)
         mock_api.nodes.get.assert_called_once()
@@ -90,7 +90,7 @@ class TestValidateApiConnection(unittest.TestCase):
         """Should return True even with empty nodes list."""
         mock_api = MagicMock()
         mock_api.nodes.get.return_value = []
-        
+
         result = api.validate_api_connection(mock_api)
         self.assertTrue(result)
 

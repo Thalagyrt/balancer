@@ -208,18 +208,6 @@ def filter_online_nodes(nodes, hastates):
     return [node for node in nodes if hastates[node["node"]] == "online" and node['status'] == 'online']
 
 
-def filter_migration_lock(resources):
-    """Check if any resource has an active migration lock.
-
-    Args:
-        resources: List of VM resource dictionaries.
-
-    Returns:
-        bool: True if a migration lock is active, False otherwise.
-    """
-    return any(c.get("lock") == "migrate" for c in resources)
-
-
 def filter_ha_rules(target_nodes, candidate, resources, ha_rules):
     """Filter out nodes that would violate an anti-affinity rule or have positive affinity.
 

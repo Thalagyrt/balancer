@@ -287,34 +287,6 @@ class TestFilterOnlineNodes(unittest.TestCase):
         self.assertEqual(len(result), 0)
 
 
-class TestFilterMigrationLock(unittest.TestCase):
-    """Tests for filter_migration_lock function."""
-
-    def test_returns_true_when_lock_exists(self):
-        """Should return True when any resource has migrate lock."""
-        resources = [
-            {"vmid": 100, "status": "running"},
-            {"vmid": 200, "status": "running", "lock": "migrate"},
-        ]
-        result = filters.filter_migration_lock(resources)
-        self.assertTrue(result)
-
-    def test_returns_false_when_no_locks(self):
-        """Should return False when no resources have locks."""
-        resources = [
-            {"vmid": 100, "status": "running"},
-            {"vmid": 200, "status": "running"},
-        ]
-        result = filters.filter_migration_lock(resources)
-        self.assertFalse(result)
-
-    def test_empty_resources(self):
-        """Should return False for empty resource list."""
-        resources = []
-        result = filters.filter_migration_lock(resources)
-        self.assertFalse(result)
-
-
 class TestFilterHaRules(unittest.TestCase):
     """Tests for filter_ha_rules function."""
 

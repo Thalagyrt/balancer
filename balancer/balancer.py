@@ -168,23 +168,6 @@ def _apply_cpu_ema_to_vms(resources, cpu_ema):
     return resources
 
 
-def _check_migration_lock(resources):
-    """Check if any resource has an active migration lock.
-
-    Args:
-        resources: List of VM resource dictionaries.
-
-    Returns:
-        bool: True if a migration lock is active, False otherwise.
-    """
-    if filters.filter_migration_lock(resources):
-        logger.debug(
-            "A resource currently has an active migration lock, taking no action"
-        )
-        return True
-    return False
-
-
 def _get_vm_candidates(resources, source_node, mode):
     """Filter and sort VM migration candidates.
 
@@ -422,9 +405,6 @@ def migrate_workload(config, cpu_ema, api_client):
 
     resources = api_client.cluster.resources.get(type="vm")
     _apply_cpu_ema_to_vms(resources, cpu_ema)
-
-    if _check_migration_lock(resources):
-        return False
 
     candidates = _get_vm_candidates(resources, source_node, mode)
 

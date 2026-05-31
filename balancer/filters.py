@@ -205,7 +205,7 @@ def filter_online_nodes(nodes, hastates):
     Returns:
         list: Filtered list containing only nodes where status == 'online'.
     """
-    return [node for node in nodes if hastates[node["node"]] == "online"]
+    return [node for node in nodes if hastates[node["node"]] == "online" and node['status'] == 'online']
 
 
 def filter_migration_lock(resources):

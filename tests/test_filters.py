@@ -263,11 +263,15 @@ class TestFilterOnlineNodes(unittest.TestCase):
             {"node": "node2", "status": "offline"},
             {"node": "node3", "status": "online"},
         ]
-        result = filters.filter_online_nodes(nodes)
-        self.assertEqual(len(result), 2)
+        hastates = {
+            "node1": "online",
+            "node2": "online",
+            "node3": "maintenance"
+        }
+        result = filters.filter_online_nodes(nodes, hastates)
+        self.assertEqual(len(result), 1)
         nodenames = [n["node"] for n in result]
         self.assertIn("node1", nodenames)
-        self.assertIn("node3", nodenames)
 
     def test_all_offline(self):
         """Should return empty list when all nodes are offline."""
@@ -275,7 +279,11 @@ class TestFilterOnlineNodes(unittest.TestCase):
             {"node": "node1", "status": "offline"},
             {"node": "node2", "status": "offline"},
         ]
-        result = filters.filter_online_nodes(nodes)
+        hastates = {
+            "node1": "online",
+            "node2": "maintenance"
+        }
+        result = filters.filter_online_nodes(nodes, hastates)
         self.assertEqual(len(result), 0)
 
 

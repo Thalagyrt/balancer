@@ -37,8 +37,19 @@ class MockProxmoxAPI:
 
         self.cluster = MagicMock()
         self.cluster.backup.get.return_value = backup_jobs_data
-        self.cluster.resources.get.return_value = resources_data
         self.cluster.ha.rules.get.return_value = ha_rules_data
+        
+        def resources_side_effect(type=None):
+            if type == "node":
+                return [
+                    {"node": n["node"], "hastate": "online" if n.get("status") == "online" else ""}
+                    for n in nodes_data
+                ]
+            elif type == "vm":
+                return resources_data
+            return []
+        
+        self.cluster.resources.get = MagicMock(side_effect=resources_side_effect)
 
         self._nodes_method = MagicMock()
         self._nodes_method.get.return_value = nodes_data
@@ -170,6 +181,7 @@ class TestMigrateWorkloadNoMigration(unittest.TestCase):
                 "mem": 200,
                 "status": "online",
                 "maxcpu": 16,
+                "hastate": "",
             },
             {
                 "node": "node2",
@@ -178,6 +190,7 @@ class TestMigrateWorkloadNoMigration(unittest.TestCase):
                 "mem": 100,
                 "status": "online",
                 "maxcpu": 16,
+                "hastate": "",
             },
         ]
         resources = [

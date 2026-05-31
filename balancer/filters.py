@@ -191,7 +191,7 @@ def filter_cpu_balance(target_nodes, candidate, source_node):
     ]
 
 
-def filter_online_nodes(nodes):
+def filter_online_nodes(nodes, hastates):
     """Filter nodes to only those with online status.
 
     Extracts only the nodes that are currently online from the Proxmox
@@ -205,7 +205,7 @@ def filter_online_nodes(nodes):
     Returns:
         list: Filtered list containing only nodes where status == 'online'.
     """
-    return [node for node in nodes if node["status"] == "online"]
+    return [node for node in nodes if hastates[node["node"]] == "online"]
 
 
 def filter_migration_lock(resources):

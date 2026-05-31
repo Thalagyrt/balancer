@@ -51,7 +51,13 @@ def _get_online_nodes(api):
         list: List of online node dictionaries.
     """
     nodes = api.nodes.get()
-    return filters.filter_online_nodes(nodes)
+
+    states = api.cluster.resources.get(type="node")
+    hastates = {
+        node['node']: node['hastate'] for node in states
+    }
+
+    return filters.filter_online_nodes(nodes, hastates)
 
 
 def _get_balancing_config(config):
@@ -456,7 +462,7 @@ def migrate_workload(config, cpu_ema, api_client):
         logger.info(
             f"{reason}: Migrating {candidate['name']} from {source_node['node']} to {target_node['node']}"
         )
-        _execute_migration(api_client, source_node, target_node, candidate)
+        #_execute_migration(api_client, source_node, target_node, candidate)
 
         return True
 

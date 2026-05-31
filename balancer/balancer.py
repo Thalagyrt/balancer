@@ -462,7 +462,7 @@ def migrate_workload(config, cpu_ema, api_client):
         logger.info(
             f"{reason}: Migrating {candidate['name']} from {source_node['node']} to {target_node['node']}"
         )
-        #_execute_migration(api_client, source_node, target_node, candidate)
+        _execute_migration(api_client, source_node, target_node, candidate)
 
         return True
 
